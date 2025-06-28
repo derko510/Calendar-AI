@@ -126,7 +126,7 @@ const SignIn = ({ onLoginSuccess }) => {
 
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6">
       <div className="flex items-center justify-center w-full">
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-12 text-center max-w-md w-full mx-4">
           <div className="mb-8">

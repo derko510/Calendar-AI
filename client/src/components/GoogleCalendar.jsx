@@ -1,0 +1,398 @@
+import { useState } from 'react';
+import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, addMonths, subMonths, isToday, addWeeks, subWeeks } from 'date-fns';
+import { getEventsForDate } from '../utils/dateUtils';
+
+const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventClick, onSignOut }) => {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [view, setView] = useState('month'); // month, week, day
+
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(monthStart);
+  const startDate = startOfWeek(monthStart, { weekStartsOn: 0 });
+  const endDate = endOfWeek(monthEnd, { weekStartsOn: 0 });
+
+  const dayFormat = "d";
+
+  const handleDateClick = (day) => {
+    setSelectedDate(day);
+    onDateSelect?.(day);
+  };
+
+  const handleEventClick = (event, e) => {
+    e.stopPropagation();
+    onEventClick?.(event);
+  };
+
+  const nextPeriod = () => {
+    if (view === 'month') {
+      setCurrentDate(addMonths(currentDate, 1));
+    } else if (view === 'week') {
+      setCurrentDate(addWeeks(currentDate, 1));
+    } else if (view === 'day') {
+      setCurrentDate(addDays(currentDate, 1));
+    }
+  };
+
+  const prevPeriod = () => {
+    if (view === 'month') {
+      setCurrentDate(subMonths(currentDate, 1));
+    } else if (view === 'week') {
+      setCurrentDate(subWeeks(currentDate, 1));
+    } else if (view === 'day') {
+      setCurrentDate(addDays(currentDate, -1));
+    }
+  };
+
+  const goToToday = () => {
+    const today = new Date();
+    setCurrentDate(today);
+    setSelectedDate(today);
+  };
+
+  const renderHeader = () => {
+    return (
+      <div className="flex items-center justify-between px-12 py-8 border-b border-gray-200 bg-white">
+        <div className="flex items-center space-x-8">
+          <button
+            onClick={goToToday}
+            className="px-8 py-4 text-lg font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Today
+          </button>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={prevPeriod}
+              className="p-4 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <ChevronLeft size={32} className="text-gray-600" />
+            </button>
+            <button
+              onClick={nextPeriod}
+              className="p-4 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <ChevronRight size={32} className="text-gray-600" />
+            </button>
+          </div>
+
+          <h1 className="text-4xl font-normal text-gray-700">
+            {view === 'month' && format(currentDate, 'MMMM yyyy')}
+            {view === 'week' && `${format(startOfWeek(currentDate), 'MMM d')} - ${format(endOfWeek(currentDate), 'MMM d, yyyy')}`}
+            {view === 'day' && format(currentDate, 'EEEE, MMMM d, yyyy')}
+          </h1>
+        </div>
+
+        <div className="flex items-center space-x-8">
+          <div className="flex bg-gray-100 rounded-xl p-2">
+            <button
+              onClick={() => setView('month')}
+              className={`px-6 py-3 text-lg font-medium rounded-lg transition-colors ${
+                view === 'month'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Month
+            </button>
+            <button
+              onClick={() => setView('week')}
+              className={`px-6 py-3 text-lg font-medium rounded-lg transition-colors ${
+                view === 'week'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Week
+            </button>
+            <button
+              onClick={() => setView('day')}
+              className={`px-6 py-3 text-lg font-medium rounded-lg transition-colors ${
+                view === 'day'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Day
+            </button>
+          </div>
+
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              className="inline-flex items-center px-6 py-4 text-lg font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Sign Out"
+            >
+              <LogOut size={20} className="mr-3" />
+              Sign Out
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderDaysOfWeek = () => {
+    const days = [];
+    let startDay = startOfWeek(currentDate, { weekStartsOn: 0 });
+
+    for (let i = 0; i < 7; i++) {
+      days.push(
+        <div key={i} className="p-6 text-xl font-medium text-gray-500 text-center border-r border-gray-200 last:border-r-0 h-24 flex items-center justify-center">
+          {format(addDays(startDay, i), 'EEE').toUpperCase()}
+        </div>
+      );
+    }
+
+    return <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50">{days}</div>;
+  };
+
+  const renderEventBar = (event, width = 'w-full') => {
+    const colors = [
+      { bg: 'bg-blue-500', text: 'text-white' },
+      { bg: 'bg-green-500', text: 'text-white' }, 
+      { bg: 'bg-purple-500', text: 'text-white' },
+      { bg: 'bg-red-500', text: 'text-white' },
+      { bg: 'bg-yellow-400', text: 'text-gray-900' },
+      { bg: 'bg-indigo-500', text: 'text-white' },
+      { bg: 'bg-pink-500', text: 'text-white' },
+      { bg: 'bg-orange-500', text: 'text-white' }
+    ];
+    
+    // Safe color index calculation
+    let colorIndex = 0;
+    if (event.id && typeof event.id === 'string' && event.id.length > 0) {
+      const lastChar = event.id.slice(-1);
+      const parsedIndex = parseInt(lastChar);
+      colorIndex = isNaN(parsedIndex) ? 0 : parsedIndex % colors.length;
+    } else if (event.summary) {
+      // Fallback: use summary hash if no ID
+      colorIndex = event.summary.length % colors.length;
+    }
+    
+    const color = colors[colorIndex];
+
+    return (
+      <div
+        onClick={(e) => handleEventClick(event, e)}
+        className={`${width} ${color.bg} ${color.text} text-base px-2 py-1 mb-1 rounded cursor-pointer hover:opacity-90 transition-opacity`}
+        title={`${event.summary} ${event.start?.dateTime ? format(new Date(event.start.dateTime), 'HH:mm') : 'All day'}`}
+      >
+        <div className="truncate text-base leading-tight font-medium">
+          {event.summary}
+        </div>
+        {event.start?.dateTime && (
+          <div className="text-sm text-gray-600 mt-1">
+            {format(new Date(event.start.dateTime), 'HH:mm')}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderMonthView = () => {
+    const rows = [];
+    let days = [];
+    let day = startDate;
+
+    while (day <= endDate) {
+      for (let i = 0; i < 7; i++) {
+        const cloneDay = day;
+        const dayEvents = getEventsForDate(events, day);
+        const isCurrentMonth = isSameMonth(day, monthStart);
+        const isSelected = isSameDay(day, selectedDate);
+        const isTodayDate = isToday(day);
+
+        days.push(
+          <div
+            key={day}
+            className={`relative aspect-square p-4 border-r border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${
+              !isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'bg-white'
+            } ${isSelected ? 'bg-blue-50' : ''}`}
+            onClick={() => handleDateClick(cloneDay)}
+          >
+            <div className={`inline-flex items-center justify-center w-12 h-12 text-lg ${
+              isTodayDate
+                ? 'bg-blue-600 text-white rounded-full font-medium'
+                : isSelected
+                ? 'bg-blue-100 text-blue-600 rounded-full font-medium'
+                : isCurrentMonth
+                ? 'text-gray-900'
+                : 'text-gray-400'
+            }`}>
+              {format(day, dayFormat)}
+            </div>
+
+            <div className="mt-2 space-y-2">
+              {dayEvents.slice(0, 2).map((event, index) => (
+                <div key={`${event.id}-${index}`}>
+                  {renderEventBar(event)}
+                </div>
+              ))}
+              {dayEvents.length > 2 && (
+                <div className="text-base text-gray-700 px-2 py-2 bg-gray-100 rounded text-center font-medium">
+                  +{dayEvents.length - 2}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+        day = addDays(day, 1);
+      }
+      rows.push(
+        <div key={day} className="grid grid-cols-7">
+          {days}
+        </div>
+      );
+      days = [];
+    }
+
+    return <div>{rows}</div>;
+  };
+
+  const renderWeekView = () => {
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+    const days = [];
+    
+    for (let i = 0; i < 7; i++) {
+      const day = addDays(weekStart, i);
+      const dayEvents = getEventsForDate(events, day);
+      const isSelected = isSameDay(day, selectedDate);
+      const isTodayDate = isToday(day);
+
+      days.push(
+        <div key={day} className="flex-1 border-r border-gray-200 last:border-r-0 flex flex-col">
+          <div className="h-24 border-b border-gray-200 bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-lg text-gray-500 font-medium mb-1">
+                {format(day, 'EEE').toUpperCase()}
+              </div>
+              <div className={`inline-flex items-center justify-center w-10 h-10 text-lg ${
+                isTodayDate
+                  ? 'bg-blue-600 text-white rounded-full font-medium'
+                  : isSelected
+                  ? 'bg-blue-100 text-blue-600 rounded-full font-medium'
+                  : 'text-gray-900'
+              }`}>
+                {format(day, 'd')}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex-1 p-4 space-y-2 cursor-pointer hover:bg-gray-50 overflow-auto" onClick={() => handleDateClick(day)}>
+            {dayEvents.map((event, index) => (
+              <div key={`${event.id}-${index}`}>
+                {renderEventBar(event)}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return <div className="flex h-full">{days}</div>;
+  };
+
+  const renderDayView = () => {
+    const dayEvents = getEventsForDate(events, currentDate);
+    const isTodayDate = isToday(currentDate);
+
+    return (
+      <div className="h-full flex flex-col">
+        <div className="p-8 border-b border-gray-200 bg-gray-50 h-32 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-2xl text-gray-500 font-medium mb-2">
+              {format(currentDate, 'EEE').toUpperCase()}
+            </div>
+            <div className={`inline-flex items-center justify-center w-24 h-24 text-4xl ${
+              isTodayDate
+                ? 'bg-blue-600 text-white rounded-full font-medium'
+                : 'text-gray-900 font-normal'
+            }`}>
+              {format(currentDate, 'd')}
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 p-8 space-y-4 overflow-auto">
+          {dayEvents.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-gray-500">
+                <p className="text-xl">No events scheduled</p>
+              </div>
+            </div>
+          ) : (
+            dayEvents.map((event, index) => (
+              <div key={`${event.id}-${index}`} className="mb-4">
+                <div className="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer" onClick={(e) => handleEventClick(event, e)}>
+                  <div className="text-lg text-gray-600 font-medium min-w-[120px]">
+                    {event.start?.dateTime ? format(new Date(event.start.dateTime), 'HH:mm') : 'All day'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-xl font-medium text-gray-900 mb-1">
+                      {event.summary}
+                    </div>
+                    {event.description && (
+                      <div className="text-lg text-gray-600">
+                        {event.description}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderContent = () => {
+    switch (view) {
+      case 'week':
+        return renderWeekView();
+      case 'day':
+        return renderDayView();
+      default:
+        return renderMonthView();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white h-screen">
+        <div className="animate-pulse">
+          <div className="h-32 bg-gray-200 border-b border-gray-200"></div>
+          <div className="grid grid-cols-7 h-20 border-b border-gray-200">
+            {Array(7).fill(0).map((_, i) => (
+              <div key={i} className="bg-gray-100 border-r border-gray-200"></div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 h-[48rem]">
+            {Array(35).fill(0).map((_, i) => (
+              <div key={i} className="bg-gray-50 border-r border-b border-gray-200 p-4">
+                <div className="w-12 h-12 bg-gray-200 rounded mb-4"></div>
+                <div className="space-y-2">
+                  <div className="h-8 bg-gray-200 rounded w-full"></div>
+                  <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 w-full h-full flex flex-col">
+      {renderHeader()}
+      {view === 'month' && renderDaysOfWeek()}
+      <div className="flex-1">
+        {renderContent()}
+      </div>
+    </div>
+  );
+};
+
+export default GoogleCalendar;

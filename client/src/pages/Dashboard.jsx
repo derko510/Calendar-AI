@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LogOut } from 'lucide-react';
-import CalendarComponent from '../components/Calendar';
+import GoogleCalendar from '../components/GoogleCalendar';
 import googleCalendarService from '../services/googleCalendar';
 import '../styles/calendar.css';
 
@@ -70,38 +70,50 @@ const Dashboard = ({ userCredential }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Simple Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <h1 className="text-2xl font-bold text-gray-900">My Google Calendar</h1>
-            <button
-              onClick={handleSignOut}
-              className="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </button>
+    <div className="min-h-screen bg-gray-50 p-12">
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-8 mb-12 max-w-6xl mx-auto">
+          <p className="text-red-600 text-center text-xl">{error}</p>
+        </div>
+      )}
+
+      {/* Main Content Grid - Calendar + Future Chatbot Space */}
+      <div className="max-w-[120rem] mx-auto h-[calc(100vh-6rem)]">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 h-full">
+          {/* Calendar Section */}
+          <div className="lg:col-span-2 h-full">
+            <GoogleCalendar
+              events={events}
+              loading={loading}
+              onDateSelect={(date) => console.log('Selected date:', date)}
+              onEventClick={(event) => console.log('Clicked event:', event)}
+              onSignOut={handleSignOut}
+            />
+          </div>
+
+          {/* Chatbot/Sidebar Space */}
+          <div className="lg:col-span-1 h-full">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 w-full h-full flex flex-col">
+              <h3 className="text-2xl font-semibold text-gray-800 mb-8">
+                Calendar Assistant
+              </h3>
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center text-gray-500">
+                  <div className="w-32 h-32 bg-gray-100 rounded-full mx-auto mb-8 flex items-center justify-center">
+                    <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <p className="text-lg">
+                    Chat assistant coming soon
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </header>
-
-      {/* Main Content - Just the Calendar */}
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-600">{error}</p>
-          </div>
-        )}
-
-        <CalendarComponent
-          events={events}
-          loading={loading}
-          onDateSelect={(date) => console.log('Selected date:', date)}
-          onEventClick={(event) => console.log('Clicked event:', event)}
-        />
-      </main>
+      </div>
     </div>
   );
 };
