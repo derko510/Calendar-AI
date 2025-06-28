@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OAuth Debug</title>
+</head>
+<body>
+    <h1>OAuth Debug</h1>
+    <button onclick="testOAuth()">Test OAuth URL</button>
+    <div id="debug"></div>
+
+    <script>
+        function testOAuth() {
+            const clientId = '953891884677-arh7viohrt7qi1kcadvivd3oisnefkt8.apps.googleusercontent.com';
+            const redirectUri = window.location.origin;
+            const scope = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events';
+            
+            const debugInfo = `
+                <h3>OAuth Configuration:</h3>
+                <p><strong>Client ID:</strong> ${clientId}</p>
+                <p><strong>Current URL:</strong> ${window.location.href}</p>
+                <p><strong>Window Origin:</strong> ${window.location.origin}</p>
+                <p><strong>Redirect URI being sent:</strong> ${redirectUri}</p>
+                <p><strong>Protocol:</strong> ${window.location.protocol}</p>
+                <p><strong>Hostname:</strong> ${window.location.hostname}</p>
+                <p><strong>Port:</strong> ${window.location.port}</p>
+                
+                <h3>Full Auth URL:</h3>
+                <textarea style="width: 100%; height: 100px;" readonly>https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=token&include_granted_scopes=true&state=calendar_auth</textarea>
+            `;
+            
+            document.getElementById('debug').innerHTML = debugInfo;
+        }
+    </script>
+</body>
+</html>

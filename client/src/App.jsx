@@ -8,10 +8,22 @@ function App() {
   const [userCredential, setUserCredential] = useState(null);
 
   useEffect(() => {
-    const savedCredential = localStorage.getItem('googleCredential');
-    if (savedCredential) {
-      setIsAuthenticated(true);
-      setUserCredential(savedCredential);
+    const savedAuth = localStorage.getItem('googleAuth');
+    if (savedAuth) {
+      try {
+        const userData = JSON.parse(savedAuth);
+        // Check if token is still valid
+        if (userData.expiresAt && userData.expiresAt > Date.now()) {
+          setIsAuthenticated(true);
+          setUserCredential(userData);
+        } else {
+          // Token expired, remove from storage
+          localStorage.removeItem('googleAuth');
+        }
+      } catch (error) {
+        console.error('Error parsing saved auth:', error);
+        localStorage.removeItem('googleAuth');
+      }
     }
   }, []);
 
