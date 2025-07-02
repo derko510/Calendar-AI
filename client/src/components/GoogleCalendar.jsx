@@ -9,6 +9,12 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState('month'); // month, week, day
+  const [tooltip, setTooltip] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    content: ''
+  });
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
@@ -25,6 +31,42 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
   const handleEventClick = (event, e) => {
     e.stopPropagation();
     onEventClick?.(event);
+  };
+
+  /**
+   * Shows tooltip on event hover with time and description.
+   * @param {Object} event - The event object being hovered.
+   * @param {Event} e - The DOM mouse event.
+   */
+  const handleEventMouseEnter = (event, e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const eventStart = new Date(event.start?.dateTime || event.start?.date || event.start);
+    const eventEnd = event.end?.dateTime 
+      ? new Date(event.end.dateTime) 
+      : new Date(eventStart.getTime() + 60 * 60 * 1000);
+    
+    let timeRange;
+    if (event.start?.dateTime) {
+      timeRange = `${format(eventStart, 'h:mm a')} - ${format(eventEnd, 'h:mm a')}`;
+    } else {
+      timeRange = 'All day';
+    }
+    
+    const description = event.description || 'No description';
+    
+    setTooltip({
+      visible: true,
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10,
+      content: `${timeRange}\n${description}`
+    });
+  };
+
+  /**
+   * Hides tooltip when mouse leaves event.
+   */
+  const handleEventMouseLeave = () => {
+    setTooltip({ visible: false, x: 0, y: 0, content: '' });
   };
 
   const nextPeriod = () => {
@@ -51,6 +93,25 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
     const today = new Date();
     setCurrentDate(today);
     setSelectedDate(today);
+    
+    // If in week view, scroll to current time after a short delay
+    if (view === 'week') {
+      setTimeout(() => {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinutes = now.getMinutes();
+        const currentTimePosition = (currentHour * 64) + (currentMinutes / 60 * 64);
+        
+        // Find the scrollable container and scroll to current time
+        const scrollContainer = document.querySelector('.flex-1.overflow-y-auto');
+        if (scrollContainer) {
+          scrollContainer.scrollTo({
+            top: Math.max(0, currentTimePosition - 200), // Offset to center the red line
+            behavior: 'smooth'
+          });
+        }
+      }, 100); // Small delay to ensure the component has updated
+    }
   };
 
   const renderHeader = () => {
@@ -178,8 +239,9 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
     return (
       <div
         onClick={(e) => handleEventClick(event, e)}
+        onMouseEnter={(e) => handleEventMouseEnter(event, e)}
+        onMouseLeave={handleEventMouseLeave}
         className={`${width} ${color.bg} ${color.text} text-base px-2 py-1 mb-1 rounded cursor-pointer hover:opacity-90 transition-opacity`}
-        title={`${event.summary} ${event.start?.dateTime ? format(new Date(event.start.dateTime), 'HH:mm') : 'All day'}`}
       >
         <div className="truncate text-base leading-tight font-medium">
           {event.summary}
@@ -259,6 +321,24 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
       <div className="flex-1 overflow-y-auto">
         {renderContent()}
       </div>
+      
+      {/* Custom Tooltip */}
+      {tooltip.visible && (
+        <div
+          className="fixed bg-gray-900 text-white text-xs p-3 rounded-lg shadow-lg z-50 max-w-xs pointer-events-none"
+          style={{
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: 'translateX(-50%) translateY(-100%)'
+          }}
+        >
+          <div className="whitespace-pre-line font-medium">
+            {tooltip.content}
+          </div>
+          {/* Tooltip arrow */}
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+        </div>
+      )}
     </div>
   );
 };
