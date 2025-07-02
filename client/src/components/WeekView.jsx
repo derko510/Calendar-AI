@@ -244,8 +244,6 @@ const WeekView = ({
             );
           })}
         </div>
-        {/* Bottom padding for better scroll experience */}
-        <div className="h-32 bg-gray-50"></div>
       </div>
     </div>
   );
