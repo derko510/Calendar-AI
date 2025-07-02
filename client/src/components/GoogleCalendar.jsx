@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, addMonths, subMonths, isToday, addWeeks, subWeeks } from 'date-fns';
-import { getEventsForDate } from '../utils/dateUtils';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
+import MonthView from './MonthView';
+import WeekView from './WeekView';
+import DayView from './DayView';
 
 const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventClick, onSignOut }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -140,7 +142,7 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
     for (let i = 0; i < 7; i++) {
       days.push(
         <div key={i} className="p-6 text-xl font-medium text-gray-500 text-center border-r border-gray-200 last:border-r-0 h-24 flex items-center justify-center">
-          {format(addDays(startDay, i), 'EEE').toUpperCase()}
+          {format(addDays(startDay, i), 'EEEE').toUpperCase()}
         </div>
       );
     }
@@ -191,170 +193,36 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
     );
   };
 
-  const renderMonthView = () => {
-    const rows = [];
-    let days = [];
-    let day = startDate;
 
-    while (day <= endDate) {
-      for (let i = 0; i < 7; i++) {
-        const cloneDay = day;
-        const dayEvents = getEventsForDate(events, day);
-        const isCurrentMonth = isSameMonth(day, monthStart);
-        const isSelected = isSameDay(day, selectedDate);
-        const isTodayDate = isToday(day);
 
-        days.push(
-          <div
-            key={day}
-            className={`relative aspect-square p-4 border-r border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${
-              !isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'bg-white'
-            } ${isSelected ? 'bg-blue-50' : ''}`}
-            onClick={() => handleDateClick(cloneDay)}
-          >
-            <div className={`inline-flex items-center justify-center w-12 h-12 text-lg ${
-              isTodayDate
-                ? 'bg-blue-600 text-white rounded-full font-medium'
-                : isSelected
-                ? 'bg-blue-100 text-blue-600 rounded-full font-medium'
-                : isCurrentMonth
-                ? 'text-gray-900'
-                : 'text-gray-400'
-            }`}>
-              {format(day, dayFormat)}
-            </div>
-
-            <div className="mt-2 space-y-2">
-              {dayEvents.slice(0, 2).map((event, index) => (
-                <div key={`${event.id}-${index}`}>
-                  {renderEventBar(event)}
-                </div>
-              ))}
-              {dayEvents.length > 2 && (
-                <div className="text-base text-gray-700 px-2 py-2 bg-gray-100 rounded text-center font-medium">
-                  +{dayEvents.length - 2}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-        day = addDays(day, 1);
-      }
-      rows.push(
-        <div key={day} className="grid grid-cols-7">
-          {days}
-        </div>
-      );
-      days = [];
-    }
-
-    return <div>{rows}</div>;
-  };
-
-  const renderWeekView = () => {
-    const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
-    const days = [];
-    
-    for (let i = 0; i < 7; i++) {
-      const day = addDays(weekStart, i);
-      const dayEvents = getEventsForDate(events, day);
-      const isSelected = isSameDay(day, selectedDate);
-      const isTodayDate = isToday(day);
-
-      days.push(
-        <div key={day} className="flex-1 border-r border-gray-200 last:border-r-0 flex flex-col">
-          <div className="h-24 border-b border-gray-200 bg-gray-50 flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-lg text-gray-500 font-medium mb-1">
-                {format(day, 'EEE').toUpperCase()}
-              </div>
-              <div className={`inline-flex items-center justify-center w-10 h-10 text-lg ${
-                isTodayDate
-                  ? 'bg-blue-600 text-white rounded-full font-medium'
-                  : isSelected
-                  ? 'bg-blue-100 text-blue-600 rounded-full font-medium'
-                  : 'text-gray-900'
-              }`}>
-                {format(day, 'd')}
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex-1 p-4 space-y-2 cursor-pointer hover:bg-gray-50 overflow-auto" onClick={() => handleDateClick(day)}>
-            {dayEvents.map((event, index) => (
-              <div key={`${event.id}-${index}`}>
-                {renderEventBar(event)}
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    return <div className="flex h-full">{days}</div>;
-  };
-
-  const renderDayView = () => {
-    const dayEvents = getEventsForDate(events, currentDate);
-    const isTodayDate = isToday(currentDate);
-
-    return (
-      <div className="h-full flex flex-col">
-        <div className="p-8 border-b border-gray-200 bg-gray-50 h-32 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-2xl text-gray-500 font-medium mb-2">
-              {format(currentDate, 'EEE').toUpperCase()}
-            </div>
-            <div className={`inline-flex items-center justify-center w-24 h-24 text-4xl ${
-              isTodayDate
-                ? 'bg-blue-600 text-white rounded-full font-medium'
-                : 'text-gray-900 font-normal'
-            }`}>
-              {format(currentDate, 'd')}
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 p-8 space-y-4 overflow-auto">
-          {dayEvents.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center text-gray-500">
-                <p className="text-xl">No events scheduled</p>
-              </div>
-            </div>
-          ) : (
-            dayEvents.map((event, index) => (
-              <div key={`${event.id}-${index}`} className="mb-4">
-                <div className="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer" onClick={(e) => handleEventClick(event, e)}>
-                  <div className="text-lg text-gray-600 font-medium min-w-[120px]">
-                    {event.start?.dateTime ? format(new Date(event.start.dateTime), 'HH:mm') : 'All day'}
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-xl font-medium text-gray-900 mb-1">
-                      {event.summary}
-                    </div>
-                    {event.description && (
-                      <div className="text-lg text-gray-600">
-                        {event.description}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    );
-  };
 
   const renderContent = () => {
     switch (view) {
       case 'week':
-        return renderWeekView();
+        return <WeekView 
+          currentDate={currentDate}
+          events={events}
+          handleDateClick={handleDateClick}
+          handleEventClick={handleEventClick}
+        />;
       case 'day':
-        return renderDayView();
+        return <DayView 
+          currentDate={currentDate}
+          events={events}
+          handleEventClick={handleEventClick}
+        />;
       default:
-        return renderMonthView();
+        return <MonthView 
+          currentDate={currentDate}
+          selectedDate={selectedDate}
+          events={events}
+          startDate={startDate}
+          endDate={endDate}
+          monthStart={monthStart}
+          dayFormat={dayFormat}
+          handleDateClick={handleDateClick}
+          renderEventBar={renderEventBar}
+        />;
     }
   };
 
