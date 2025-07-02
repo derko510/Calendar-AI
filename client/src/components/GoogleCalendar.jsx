@@ -253,10 +253,10 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 w-full h-full flex flex-col">
+    <div className="bg-gray-50 rounded-lg shadow-lg border-2 border-gray-300 w-full h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
       {renderHeader()}
       {view === 'month' && renderDaysOfWeek()}
-      <div className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         {renderContent()}
       </div>
     </div>

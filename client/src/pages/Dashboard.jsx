@@ -94,7 +94,7 @@ const Dashboard = ({ userCredential }) => {
 
           {/* Chatbot/Sidebar Space */}
           <div className="lg:col-span-1 h-full">
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 w-full h-full flex flex-col">
+            <div className="bg-gray-50 rounded-lg shadow-lg border-2 border-gray-300 p-12 w-full sticky top-12 h-[calc(100vh-6rem)] flex flex-col">
               <h3 className="text-2xl font-semibold text-gray-800 mb-8">
                 Calendar Assistant
               </h3>
