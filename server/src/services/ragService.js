@@ -1,4 +1,5 @@
 import { OllamaService } from './ollamaService.js';
+import { CloudLLMService } from './cloudLLM.js';
 import { CalendarSyncService } from './calendarSync.js';
 import { db } from '../db/connection.js';
 import { calendarEvents } from '../db/schema.js';
@@ -6,7 +7,12 @@ import { eq, and, or, ilike, desc, asc, gte, lte } from 'drizzle-orm';
 
 export class RAGService {
   constructor() {
-    this.ollama = new OllamaService();
+    // Use cloud LLM in production, Ollama in development
+    if (process.env.NODE_ENV === 'production') {
+      this.llm = new CloudLLMService();
+    } else {
+      this.llm = new OllamaService();
+    }
     this.calendarSync = new CalendarSyncService();
   }
 
@@ -54,7 +60,7 @@ Examples:
 - "Schedule dinner with John at 7 PM Friday" → {"type": "CREATE_EVENT", "keywords": ["dinner", "John"]}
 `;
 
-    const response = await this.ollama.generate(prompt, { temperature: 0.1 });
+    const response = await this.llm.generate(prompt, { temperature: 0.1 });
 
     try {
       // Extract JSON from response (Ollama sometimes adds extra text)
@@ -171,7 +177,7 @@ Provide a natural, conversational response. If no relevant events are found, let
 Be specific about dates and times when possible.
 `;
 
-    const response = await this.ollama.generate(prompt, { temperature: 0.7 });
+    const response = await this.llm.generate(prompt, { temperature: 0.7 });
     return response;
   }
 

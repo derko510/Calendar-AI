@@ -7,7 +7,7 @@ const RealCalendarBot = ({ userCredential, events }) => {
     {
       id: 1,
       type: 'bot',
-      content: "🗓️ Hi! I'm your Real Calendar Assistant. I can access your actual Google Calendar data. Let me sync your events first...",
+      content: "🗓️ Hi! I'm your Calendar AI. I can access your actual Google Calendar data. Let me sync your events first...",
       timestamp: new Date()
     }
   ]);
@@ -172,7 +172,7 @@ Try asking:
           <div className="flex items-center gap-2">
             <Calendar className="w-6 h-6" />
             <div>
-              <h3 className="text-lg font-semibold">Real Calendar Assistant</h3>
+              <h3 className="text-lg font-semibold">Calendar AI</h3>
               <p className="text-blue-100 text-sm">Connected to your Google Calendar</p>
             </div>
           </div>

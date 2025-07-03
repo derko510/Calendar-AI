@@ -124,6 +124,14 @@ Thumbs.db
 
 # Database migration files (keep schema, ignore generated migrations with sensitive data)
 drizzle/**/0*_*.sql
+drizzle/
+**/drizzle/
+
+# Vercel deployment artifacts
+**/.vercel/
+
+# Production environment files
+**/.env.production
 
 # Test files with real data
 test-data/

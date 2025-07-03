@@ -5,24 +5,24 @@ import helmet from 'helmet';
 import bodyParser from 'body-parser';
 import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
-import { specs } from './src/config/swagger.js';
+import { specs } from '../src/config/swagger.js';
 import 'dotenv/config';
 
 // Import routes
-import authRoutes from './src/routes/auth.js';
-import calendarRoutes from './src/routes/calendar.js';
-import chatbotRoutes from './src/routes/chatbot.js';
-import simpleChatRoutes from './src/routes/simpleChatbot.js';
-import ragChatRoutes from './src/routes/ragChatbot.js';
-import testRagRoutes from './src/routes/testRag.js';
-import realCalendarRoutes from './src/routes/realCalendar.js';
+import authRoutes from '../src/routes/auth.js';
+import calendarRoutes from '../src/routes/calendar.js';
+import chatbotRoutes from '../src/routes/chatbot.js';
+import simpleChatRoutes from '../src/routes/simpleChatbot.js';
+import ragChatRoutes from '../src/routes/ragChatbot.js';
+import testRagRoutes from '../src/routes/testRag.js';
+import realCalendarRoutes from '../src/routes/realCalendar.js';
 
 // Import middleware
-import { requireAuth } from './src/middleware/auth.js';
+import { requireAuth } from '../src/middleware/auth.js';
 
 // Import services
-import { CalendarSyncService } from './src/services/calendarSync.js';
-import { setupOllama } from './src/utils/setupOllama.js';
+import { CalendarSyncService } from '../src/services/calendarSync.js';
+import { setupOllama } from '../src/utils/setupOllama.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
