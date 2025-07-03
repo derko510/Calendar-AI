@@ -1,17 +1,47 @@
 import { useState, useEffect } from 'react';
 import { LogOut } from 'lucide-react';
 import GoogleCalendar from '../components/GoogleCalendar';
+import RAGChatBot from '../components/RAGChatBot';
+import RealCalendarBot from '../components/RealCalendarBot';
 import googleCalendarService from '../services/googleCalendar';
+import authService from '../services/authService';
 import '../styles/calendar.css';
 
 const Dashboard = ({ userCredential }) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [backendAuth, setBackendAuth] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     initializeCalendar();
   }, []);
+
+  useEffect(() => {
+    // Initialize backend session when user credential is available
+    if (userCredential && userCredential.accessToken) {
+      initializeBackendAuth();
+    } else {
+      setAuthLoading(false);
+    }
+  }, [userCredential]);
+
+  const initializeBackendAuth = async () => {
+    try {
+      setAuthLoading(true);
+      console.log('🔄 Establishing backend session...');
+      await authService.initializeBackendSession(userCredential);
+      console.log('✅ Backend authentication established');
+      setBackendAuth(true);
+    } catch (error) {
+      console.error('❌ Backend authentication failed:', error);
+      setBackendAuth(false);
+      // Don't show error to user for now, RAG features just won't work
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   const initializeCalendar = async () => {
     try {
@@ -38,6 +68,8 @@ const Dashboard = ({ userCredential }) => {
         console.log('📅 Google Calendar events loaded:', calendarEvents.length, 'events');
         setEvents(calendarEvents);
         setError(null);
+
+        // Note: Backend sync removed for simple mode
       } else {
         console.error('❌ No access token available');
         setError('No access token available. Please sign in again.');
@@ -50,6 +82,8 @@ const Dashboard = ({ userCredential }) => {
       setLoading(false);
     }
   };
+
+  // Removed sync function for simple mode
 
 
   const handleSignOut = () => {
@@ -94,22 +128,19 @@ const Dashboard = ({ userCredential }) => {
 
           {/* Chatbot/Sidebar Space */}
           <div className="lg:col-span-1 h-full">
-            <div className="bg-gray-50 rounded-lg shadow-lg border-2 border-gray-300 p-12 w-full sticky top-12 h-[calc(100vh-6rem)] flex flex-col">
-              <h3 className="text-2xl font-semibold text-gray-800 mb-8">
-                Calendar Assistant
-              </h3>
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  <div className="w-32 h-32 bg-gray-100 rounded-full mx-auto mb-8 flex items-center justify-center">
-                    <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
+            <div className="sticky top-12 h-[calc(100vh-6rem)]">
+              {authLoading ? (
+                <div className="bg-white rounded-lg shadow-lg border border-gray-200 flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-600">Setting up chatbot...</p>
                   </div>
-                  <p className="text-lg">
-                    Chat assistant coming soon
-                  </p>
                 </div>
-              </div>
+              ) : backendAuth ? (
+                <RAGChatBot backendAuth={backendAuth} />
+              ) : (
+                <RealCalendarBot userCredential={userCredential} events={events} />
+              )}
             </div>
           </div>
         </div>

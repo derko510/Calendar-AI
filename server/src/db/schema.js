@@ -1,0 +1,27 @@
+import { pgTable, serial, varchar, text, timestamp, integer, boolean } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  googleId: varchar('google_id', { length: 255 }).unique().notNull(),
+  email: varchar('email', { length: 255 }).notNull(),
+  name: varchar('name', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const calendarEvents = pgTable('calendar_events', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  googleEventId: varchar('google_event_id', { length: 255 }).unique().notNull(),
+  title: varchar('title', { length: 500 }),
+  description: text('description'),
+  startDatetime: timestamp('start_datetime'),
+  endDatetime: timestamp('end_datetime'),
+  location: varchar('location', { length: 500 }),
+  attendees: text('attendees').array(),
+  recurrence: text('recurrence'),
+  isAllDay: boolean('is_all_day').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  // Full-text search will be handled by PostgreSQL triggers
+});
