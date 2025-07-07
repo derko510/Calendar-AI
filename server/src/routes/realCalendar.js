@@ -15,8 +15,10 @@ router.post('/sync-frontend-data', async (req, res) => {
     }
     
     console.log(`🔄 Syncing ${events.length} events from frontend...`);
+    console.log('📧 User info:', userInfo);
     
     // Create or get user based on email
+    console.log('🔍 Looking up user in database...');
     let user = await db
       .select()
       .from(users)
@@ -40,24 +42,35 @@ router.post('/sync-frontend-data', async (req, res) => {
     console.log(`📊 Using user ID: ${userId}`);
     
     // Clear existing events for this user
+    console.log('🗑️ Clearing existing events for user...');
     await db
       .delete(calendarEvents)
       .where(eq(calendarEvents.userId, userId));
     
     // Insert new events
-    const eventsToInsert = events.map(event => ({
-      userId,
-      googleEventId: event.id,
-      title: event.summary || 'No Title',
-      description: event.description || null,
-      startDatetime: parseGoogleDateTime(event.start),
-      endDatetime: parseGoogleDateTime(event.end),
-      location: event.location || null,
-      attendees: event.attendees?.map(a => a.email) || [],
-      recurrence: event.recurrence?.join(',') || null,
-      isAllDay: !!(event.start?.date) // All-day events have date instead of dateTime
-    }));
+    console.log('📝 Preparing events for insertion...');
+    const eventsToInsert = events.map((event, index) => {
+      try {
+        return {
+          userId,
+          googleEventId: event.id,
+          title: event.summary || 'No Title',
+          description: event.description || null,
+          startDatetime: parseGoogleDateTime(event.start),
+          endDatetime: parseGoogleDateTime(event.end),
+          location: event.location || null,
+          attendees: event.attendees?.map(a => a.email) || [],
+          recurrence: event.recurrence?.join(',') || null,
+          isAllDay: !!(event.start?.date) // All-day events have date instead of dateTime
+        };
+      } catch (parseError) {
+        console.error(`❌ Error parsing event ${index}:`, parseError);
+        console.error('❌ Event data:', event);
+        throw parseError;
+      }
+    });
     
+    console.log('💾 Inserting events into database...');
     if (eventsToInsert.length > 0) {
       await db.insert(calendarEvents).values(eventsToInsert);
     }
@@ -73,7 +86,17 @@ router.post('/sync-frontend-data', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Sync error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      constraint: error.constraint,
+      detail: error.detail
+    });
+    res.status(500).json({ 
+      error: error.message,
+      details: error.code || 'Unknown error'
+    });
   }
 });
 
