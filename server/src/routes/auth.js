@@ -11,7 +11,7 @@ const router = express.Router();
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/auth/callback'
+  process.env.GOOGLE_REDIRECT_URI || 'https://derricks-calendar-ai.vercel.app/'
 );
 
 /**
@@ -168,7 +168,10 @@ router.get('/user', (req, res) => {
  */
 router.post('/google-token', async (req, res) => {
   try {
-    console.log('🔄 Received google-token request:', req.body);
+    console.log('🔄 Received google-token request');
+    console.log('📝 Request body keys:', Object.keys(req.body));
+    console.log('📝 Access token present:', !!req.body.accessToken);
+    
     const { accessToken, credential } = req.body;
     
     if (!accessToken) {
@@ -176,15 +179,25 @@ router.post('/google-token', async (req, res) => {
       return res.status(400).json({ error: 'Access token is required' });
     }
 
+    // Check if token format looks valid
+    console.log('🔍 Access token length:', accessToken.length);
+    console.log('🔍 Access token starts with:', accessToken.substring(0, 10));
+
     // Try to get user info directly using fetch instead of googleapis
     console.log('📡 Fetching user info from Google using direct API call...');
-    const response = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${accessToken}`);
+    const googleApiUrl = `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${accessToken}`;
+    console.log('🌐 Making request to:', googleApiUrl.substring(0, 80) + '...');
+    
+    const response = await fetch(googleApiUrl);
+    
+    console.log('📊 Google API response status:', response.status);
+    console.log('📊 Google API response ok:', response.ok);
     
     if (!response.ok) {
       console.error('❌ Google API response not ok:', response.status, response.statusText);
       const errorText = await response.text();
       console.error('❌ Error response:', errorText);
-      return res.status(401).json({ error: 'Invalid access token' });
+      return res.status(401).json({ error: 'Invalid access token', details: errorText });
     }
     
     const googleUser = await response.json();
