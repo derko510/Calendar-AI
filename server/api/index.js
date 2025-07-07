@@ -186,8 +186,55 @@ app.get('/api/auth/test-auth', (req, res) => {
   res.json({ message: 'Auth route works', timestamp: new Date().toISOString() });
 });
 
-// Temporary auth endpoint to bypass import issues
-app.post('/api/auth/google-token', async (req, res) => {
+// Handle all auth requests
+app.all('/api/auth/*', async (req, res) => {
+  if (req.method === 'POST' && req.path === '/api/auth/google-token') {
+    // Handle google-token POST request
+    try {
+      console.log('🔄 Received google-token request');
+      const { accessToken } = req.body;
+      
+      if (!accessToken) {
+        return res.status(400).json({ error: 'Access token is required' });
+      }
+
+      // Test Google API call
+      const response = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${accessToken}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        return res.status(401).json({ error: 'Invalid access token', details: errorText });
+      }
+      
+      const googleUser = await response.json();
+      
+      // Create a simple session
+      req.session.user = {
+        id: 'temp-user',
+        googleId: googleUser.id,
+        email: googleUser.email,
+        name: googleUser.name,
+        accessToken: accessToken,
+      };
+
+      res.json({ 
+        success: true,
+        user: {
+          email: googleUser.email,
+          name: googleUser.name
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error in google-token endpoint:', error);
+      res.status(500).json({ error: 'Authentication failed', details: error.message });
+    }
+  } else {
+    res.status(404).json({ error: 'Auth endpoint not found' });
+  }
+});
+
+// OLD: Temporary auth endpoint to bypass import issues
+app.post('/api/auth/google-token-old', async (req, res) => {
   try {
     console.log('🔄 Received google-token request');
     const { accessToken } = req.body;
