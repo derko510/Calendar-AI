@@ -1,5 +1,5 @@
 {
-  "name": "calendar-ai-frontend",
+  "name": "calendar-ai-frontend", 
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
@@ -11,10 +11,14 @@
       "destination": "/index.html"
     }
   ],
-  "git": {
-    "deploymentEnabled": {
-      "main": true,
-      "dev": true
+  "env": {
+    "VITE_API_URL": "@vite-api-url",
+    "VITE_GOOGLE_CLIENT_ID": "@vite-google-client-id"
+  },
+  "build": {
+    "env": {
+      "VITE_API_URL": "@vite-api-url",
+      "VITE_GOOGLE_CLIENT_ID": "@vite-google-client-id"
     }
   }
 }
