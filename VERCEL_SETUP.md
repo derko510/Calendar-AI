@@ -5,8 +5,12 @@
 Vercel automatically deploys every branch to a unique URL:
 
 - **Production (main)**: `derricks-calendar-ai.vercel.app`
-- **Dev branch**: `derricks-calendar-ai-git-dev.vercel.app`  
-- **Feature branches**: `derricks-calendar-ai-git-[branch-name].vercel.app`
+- **Dev branch**: `client-git-dev-derricks-projects-0ffc821f.vercel.app`  
+- **Feature branches**: `client-git-[branch-name]-derricks-projects-0ffc821f.vercel.app`
+
+**Backend URLs:**
+- **Production (main)**: `server-nu-eight-16.vercel.app`
+- **Dev branch**: `server-git-dev-derricks-projects-0ffc821f.vercel.app`
 
 ## Setup Instructions
 
@@ -26,7 +30,7 @@ VITE_GOOGLE_CLIENT_ID = [YOUR_NEW_GOOGLE_CLIENT_ID]
 
 #### Preview Environment (dev + other branches):
 ```
-VITE_API_URL = https://server-nu-eight-16-git-dev.vercel.app
+VITE_API_URL = https://server-git-dev-derricks-projects-0ffc821f.vercel.app
 VITE_GOOGLE_CLIENT_ID = [YOUR_NEW_GOOGLE_CLIENT_ID]
 ```
 **Environment**: Preview
@@ -55,9 +59,11 @@ Add these URLs to your Google Cloud Console OAuth settings:
 4. **Add to Authorized redirect URIs**:
    ```
    https://derricks-calendar-ai.vercel.app
-   https://derricks-calendar-ai-git-dev.vercel.app
+   https://client-git-dev-derricks-projects-0ffc821f.vercel.app
    https://server-nu-eight-16.vercel.app
-   https://server-nu-eight-16-git-dev.vercel.app
+   https://server-git-dev-derricks-projects-0ffc821f.vercel.app
+   http://localhost:5173
+   http://localhost:3000
    ```
 
 ## Development Workflow
