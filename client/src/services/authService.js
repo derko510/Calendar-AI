@@ -5,13 +5,15 @@ class AuthService {
     this.isAuthenticated = false;
     this.userSession = null;
     this.jwtToken = null;
-    this.loadTokenFromStorage();
+    // Don't auto-load in constructor, let App component control timing
   }
 
-  loadTokenFromStorage() {
+  async loadTokenFromStorage() {
     try {
+      console.log('🔍 Loading JWT token from localStorage...');
       const token = localStorage.getItem('calendar-ai-jwt');
       if (token) {
+        console.log('📝 Found JWT token in storage, verifying...');
         // Verify token isn't expired
         const payload = this.parseJWT(token);
         if (payload && payload.exp * 1000 > Date.now()) {
@@ -20,18 +22,26 @@ class AuthService {
             id: payload.id,
             email: payload.email,
             name: payload.name,
-            googleId: payload.googleId
+            googleId: payload.googleId,
+            accessToken: payload.accessToken
           };
           this.isAuthenticated = true;
           console.log('✅ JWT token loaded from storage for:', payload.email);
+          console.log('📊 Token expires at:', new Date(payload.exp * 1000).toISOString());
+          return true;
         } else {
           console.log('⚠️ Stored JWT token is expired, clearing...');
           this.clearToken();
+          return false;
         }
+      } else {
+        console.log('ℹ️ No JWT token found in localStorage');
+        return false;
       }
     } catch (error) {
       console.error('Error loading JWT token:', error);
       this.clearToken();
+      return false;
     }
   }
 
@@ -62,6 +72,7 @@ class AuthService {
   }
 
   clearToken() {
+    console.log('🗑️ Clearing JWT token from storage');
     localStorage.removeItem('calendar-ai-jwt');
     this.jwtToken = null;
     this.userSession = null;
