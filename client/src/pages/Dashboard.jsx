@@ -22,24 +22,43 @@ const Dashboard = ({ userCredential }) => {
     // Initialize backend session when user credential is available
     if (userCredential && userCredential.accessToken) {
       initializeBackendAuth();
+    } else if (authService.isAuthenticated) {
+      // If we have JWT auth but no userCredential, create one from JWT data
+      console.log('🔄 Creating user credential from JWT data');
+      const jwtUserCredential = {
+        accessToken: authService.userSession.accessToken || 'jwt-managed',
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 hours from now
+        profile: authService.userSession
+      };
+      initializeBackendAuth(jwtUserCredential);
     } else {
       setAuthLoading(false);
     }
   }, [userCredential]);
 
-  const initializeBackendAuth = async () => {
+  const initializeBackendAuth = async (credentialOverride = null) => {
     try {
       setAuthLoading(true);
+      const credential = credentialOverride || userCredential;
+      
       console.log('🔄 Establishing backend session...');
       console.log('📝 User credential data:', {
-        hasAccessToken: !!userCredential?.accessToken,
-        tokenLength: userCredential?.accessToken?.length,
-        hasExpiresAt: !!userCredential?.expiresAt,
-        isExpired: userCredential?.expiresAt ? Date.now() > userCredential.expiresAt : 'unknown',
-        timeUntilExpiry: userCredential?.expiresAt ? Math.max(0, userCredential.expiresAt - Date.now()) : 'unknown'
+        hasAccessToken: !!credential?.accessToken,
+        tokenLength: credential?.accessToken?.length,
+        hasExpiresAt: !!credential?.expiresAt,
+        isExpired: credential?.expiresAt ? Date.now() > credential.expiresAt : 'unknown',
+        timeUntilExpiry: credential?.expiresAt ? Math.max(0, credential.expiresAt - Date.now()) : 'unknown',
+        isJWTManaged: credential?.accessToken === 'jwt-managed'
       });
       
-      const result = await authService.initializeBackendSession(userCredential);
+      // If we already have a JWT token, just set backend auth to true
+      if (authService.isAuthenticated && authService.jwtToken) {
+        console.log('✅ Using existing JWT authentication');
+        setBackendAuth(true);
+        return;
+      }
+      
+      const result = await authService.initializeBackendSession(credential);
       console.log('✅ Backend authentication established:', result);
       setBackendAuth(true);
     } catch (error) {
@@ -108,8 +127,10 @@ const Dashboard = ({ userCredential }) => {
 
 
   const handleSignOut = () => {
+    // Clear all authentication data
     localStorage.removeItem('googleAuth');
     localStorage.removeItem('googleCredential');
+    authService.logout(); // This clears JWT tokens
     window.location.reload();
   };
 
@@ -117,6 +138,7 @@ const Dashboard = ({ userCredential }) => {
     // Clear expired tokens and force re-authentication
     localStorage.removeItem('googleAuth');
     localStorage.removeItem('googleCredential');
+    authService.clearToken(); // Clear JWT tokens too
     setError(null);
     window.location.reload();
   };
