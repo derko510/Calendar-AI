@@ -165,7 +165,18 @@ app.get('/api/test-db', async (req, res) => {
  *                   example: "2023-07-03T10:30:00.000Z"
  */
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  const envCheck = {
+    hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+    hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    hasSessionSecret: !!process.env.SESSION_SECRET
+  };
+  
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    env: envCheck
+  });
 });
 
 // Environment test endpoint
