@@ -98,7 +98,7 @@ app.use('/api/real-calendar', realCalendarRoutes); // Real calendar data sync
 // Test route for calendar sync (requires auth session)
 app.post('/api/test-sync', requireAuth, async (req, res) => {
   try {
-    const { CalendarSyncService } = await import('./src/services/calendarSync.js');
+    const { CalendarSyncService } = await import('../src/services/calendarSync.js');
     const syncService = new CalendarSyncService();
     
     const userId = req.user.id;
@@ -125,8 +125,8 @@ app.post('/api/test-sync', requireAuth, async (req, res) => {
 // Test route to check database without auth
 app.get('/api/test-db', async (req, res) => {
   try {
-    const { db } = await import('./src/db/connection.js');
-    const { calendarEvents, users } = await import('./src/db/schema.js');
+    const { db } = await import('../src/db/connection.js');
+    const { calendarEvents, users } = await import('../src/db/schema.js');
     
     const userCount = await db.select().from(users);
     const eventCount = await db.select().from(calendarEvents);
