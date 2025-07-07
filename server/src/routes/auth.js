@@ -166,6 +166,21 @@ router.get('/user', (req, res) => {
  *       500:
  *         description: Authentication failed
  */
+// Simple test endpoint to verify backend is working
+router.get('/test', (req, res) => {
+  console.log('🧪 Test endpoint hit');
+  res.json({ 
+    success: true, 
+    message: 'Backend is working',
+    timestamp: new Date().toISOString(),
+    env: {
+      hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      hasDatabaseUrl: !!process.env.DATABASE_URL
+    }
+  });
+});
+
 router.post('/google-token', async (req, res) => {
   try {
     console.log('🔄 Received google-token request');
