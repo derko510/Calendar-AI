@@ -146,7 +146,7 @@ const RAGChatBot = ({ backendAuth }) => {
           <div className="flex items-center gap-2">
             <Database className="w-6 h-6" />
             <div>
-              <h3 className="text-lg font-semibold">RAG Calendar Assistant</h3>
+              <h3 className="text-lg font-semibold">Calendar AI</h3>
               <p className="text-green-100 text-sm">Powered by your calendar data</p>
             </div>
           </div>

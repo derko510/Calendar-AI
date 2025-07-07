@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, timestamp, integer, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, text, timestamp, integer, boolean, unique } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
@@ -12,7 +12,7 @@ export const users = pgTable('users', {
 export const calendarEvents = pgTable('calendar_events', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id).notNull(),
-  googleEventId: varchar('google_event_id', { length: 255 }).unique().notNull(),
+  googleEventId: varchar('google_event_id', { length: 255 }).notNull(),
   title: varchar('title', { length: 500 }),
   description: text('description'),
   startDatetime: timestamp('start_datetime'),
@@ -24,4 +24,9 @@ export const calendarEvents = pgTable('calendar_events', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   // Full-text search will be handled by PostgreSQL triggers
+}, (table) => {
+  return {
+    // Composite unique constraint: same Google event can exist for different users
+    userEventUnique: unique().on(table.userId, table.googleEventId)
+  };
 });
