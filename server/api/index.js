@@ -19,6 +19,8 @@ import realCalendarRoutes from '../src/routes/realCalendar.js';
 
 // Import middleware
 import { requireAuth } from '../src/middleware/auth.js';
+import { requireJWTAuth } from '../src/middleware/jwtAuth.js';
+import { generateToken } from '../src/utils/jwt.js';
 
 // Import services
 import { CalendarSyncService } from '../src/services/calendarSync.js';
@@ -328,35 +330,34 @@ app.all('/api/auth/*', async (req, res) => {
       
       const googleUser = await response.json();
       
-      // Create a simple session
-      req.session.user = {
-        id: 'temp-user',
+      // Create JWT token instead of session
+      const tokenPayload = {
+        id: `google-${googleUser.id}`,
         googleId: googleUser.id,
         email: googleUser.email,
         name: googleUser.name,
         accessToken: accessToken,
+        iat: Math.floor(Date.now() / 1000)
       };
 
-      // Force session save
-      req.session.save((err) => {
-        if (err) {
-          console.error('❌ Session save error:', err);
-        } else {
-          console.log('✅ Session saved successfully:', req.sessionID);
-        }
+      const jwtToken = generateToken(tokenPayload);
+
+      console.log('✅ JWT token created:', {
+        userEmail: googleUser.email,
+        tokenLength: jwtToken.length,
+        userId: tokenPayload.id
       });
 
-      console.log('✅ Session created:', {
-        sessionID: req.sessionID,
-        userEmail: googleUser.email,
-        hasUser: !!req.session.user
-      });
+      // Also create session for backward compatibility
+      req.session.user = tokenPayload;
 
       res.json({ 
         success: true,
+        token: jwtToken,
         user: {
           email: googleUser.email,
-          name: googleUser.name
+          name: googleUser.name,
+          id: tokenPayload.id
         }
       });
     } catch (error) {

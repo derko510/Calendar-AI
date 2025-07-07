@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader2, Database, RefreshCw } from 'lucide-react';
+import authService from '../services/authService';
 
 const RAGChatBot = ({ backendAuth }) => {
   const [messages, setMessages] = useState([
@@ -36,32 +37,29 @@ const RAGChatBot = ({ backendAuth }) => {
     try {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
       
-      // First test if the session is valid
-      console.log('🔍 Testing session before sync...');
-      const sessionTest = await fetch(`${API_BASE_URL}/api/auth/user`, {
-        method: 'GET',
-        credentials: 'include'
-      });
-      
-      console.log('📊 Session test result:', {
-        status: sessionTest.status,
-        ok: sessionTest.ok,
-        headers: Object.fromEntries(sessionTest.headers.entries())
-      });
-      
-      if (!sessionTest.ok) {
-        console.error('❌ Session test failed:', sessionTest.status);
-        setSyncStatus('❌ Session expired - please refresh the page');
+      // Check if we have a valid JWT token
+      if (!authService.jwtToken) {
+        console.error('❌ No JWT token available');
+        setSyncStatus('❌ No authentication token - please refresh the page');
         return;
       }
       
-      console.log('🔄 Session valid, proceeding with sync...');
+      console.log('🔍 Testing JWT token before sync...');
+      const headers = authService.getAuthHeaders();
+      console.log('📝 Using headers:', headers);
+      
+      const sessionTest = await authService.checkBackendSession();
+      
+      if (!sessionTest) {
+        console.error('❌ JWT token test failed');
+        setSyncStatus('❌ Authentication expired - please refresh the page');
+        return;
+      }
+      
+      console.log('🔄 JWT token valid, proceeding with sync...');
       const response = await fetch(`${API_BASE_URL}/api/rag-chat/sync`, {
         method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authService.getAuthHeaders(),
       });
 
       console.log('📊 Sync response:', {
@@ -126,10 +124,7 @@ const RAGChatBot = ({ backendAuth }) => {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
       const response = await fetch(`${API_BASE_URL}/api/rag-chat/message`, {
         method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authService.getAuthHeaders(),
         body: JSON.stringify({
           message: userMessage.content
         })

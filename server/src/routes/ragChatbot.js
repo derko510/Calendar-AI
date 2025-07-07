@@ -1,6 +1,7 @@
 import express from 'express';
 import { RAGService } from '../services/ragService.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireJWTAuth } from '../middleware/jwtAuth.js';
 
 const router = express.Router();
 const ragService = new RAGService();
@@ -32,7 +33,7 @@ const ragService = new RAGService();
  *       500:
  *         description: Internal server error
  */
-router.post('/message', requireAuth, async (req, res) => {
+router.post('/message', requireJWTAuth, async (req, res) => {
   try {
     const { message } = req.body;
     const userId = req.user?.id;
@@ -76,7 +77,7 @@ router.post('/message', requireAuth, async (req, res) => {
  *       500:
  *         description: Sync failed
  */
-router.post('/sync', requireAuth, async (req, res) => {
+router.post('/sync', requireJWTAuth, async (req, res) => {
   try {
     const { CalendarSyncService } = await import('../services/calendarSync.js');
     const syncService = new CalendarSyncService();

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db/connection.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { optionalJWTAuth } from '../middleware/jwtAuth.js';
 
 const router = express.Router();
 
@@ -127,8 +128,13 @@ router.get('/callback', async (req, res) => {
  *       401:
  *         description: Not authenticated
  */
-router.get('/user', (req, res) => {
-  if (req.session.user) {
+router.get('/user', optionalJWTAuth, (req, res) => {
+  // Check JWT auth first, then fallback to session
+  if (req.user) {
+    // JWT authentication
+    res.json({ user: req.user });
+  } else if (req.session && req.session.user) {
+    // Session authentication (backward compatibility)
     res.json({ user: req.session.user });
   } else {
     res.status(401).json({ error: 'Not authenticated' });
