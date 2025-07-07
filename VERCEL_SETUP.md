@@ -19,7 +19,7 @@ Vercel automatically deploys every branch to a unique URL:
 #### Production Environment (main branch):
 ```
 VITE_API_URL = https://server-nu-eight-16.vercel.app
-VITE_GOOGLE_CLIENT_ID = 953891884677-arh7viohrt7qi1kcadvivd3oisnefkt8.apps.googleusercontent.com
+VITE_GOOGLE_CLIENT_ID = [YOUR_NEW_GOOGLE_CLIENT_ID]
 ```
 **Environment**: Production
 **Git Branch**: main
@@ -27,7 +27,7 @@ VITE_GOOGLE_CLIENT_ID = 953891884677-arh7viohrt7qi1kcadvivd3oisnefkt8.apps.googl
 #### Preview Environment (dev + other branches):
 ```
 VITE_API_URL = https://server-nu-eight-16-git-dev.vercel.app
-VITE_GOOGLE_CLIENT_ID = 953891884677-arh7viohrt7qi1kcadvivd3oisnefkt8.apps.googleusercontent.com
+VITE_GOOGLE_CLIENT_ID = [YOUR_NEW_GOOGLE_CLIENT_ID]
 ```
 **Environment**: Preview
 **Git Branch**: (leave empty for all preview branches)
@@ -108,4 +108,4 @@ Vercel will automatically comment on PRs with preview URLs:
 | Variable | Production Value | Preview Value |
 |----------|------------------|---------------|
 | `VITE_API_URL` | `https://server-nu-eight-16.vercel.app` | `https://server-nu-eight-16-git-dev.vercel.app` |
-| `VITE_GOOGLE_CLIENT_ID` | `953891884677-arh7viohrt7qi1kcadvivd3oisnefkt8.apps.googleusercontent.com` | Same |
+| `VITE_GOOGLE_CLIENT_ID` | `[YOUR_NEW_GOOGLE_CLIENT_ID]` | Same |
