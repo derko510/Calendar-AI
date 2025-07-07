@@ -181,6 +181,48 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Temporary auth endpoint to bypass import issues
+app.post('/api/auth/google-token', async (req, res) => {
+  try {
+    console.log('🔄 Received google-token request');
+    const { accessToken } = req.body;
+    
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Access token is required' });
+    }
+
+    // Test Google API call
+    const response = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${accessToken}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(401).json({ error: 'Invalid access token', details: errorText });
+    }
+    
+    const googleUser = await response.json();
+    
+    // Create a simple session (without database for now)
+    req.session.user = {
+      id: 'temp-user',
+      googleId: googleUser.id,
+      email: googleUser.email,
+      name: googleUser.name,
+      accessToken: accessToken,
+    };
+
+    res.json({ 
+      success: true,
+      user: {
+        email: googleUser.email,
+        name: googleUser.name
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error in google-token endpoint:', error);
+    res.status(500).json({ error: 'Authentication failed', details: error.message });
+  }
+});
+
 // Environment test endpoint
 app.get('/api/env-test', (req, res) => {
   console.log('🧪 Environment test endpoint hit');
