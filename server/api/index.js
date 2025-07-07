@@ -186,6 +186,108 @@ app.get('/api/auth/test-auth', (req, res) => {
   res.json({ message: 'Auth route works', timestamp: new Date().toISOString() });
 });
 
+// Simple calendar sync test
+app.post('/api/real-calendar/sync-frontend-data', async (req, res) => {
+  try {
+    const { events, userInfo } = req.body;
+    
+    if (!events || !userInfo) {
+      return res.status(400).json({ error: 'Events and user info are required' });
+    }
+    
+    console.log(`🔄 Syncing ${events.length} events from frontend...`);
+    console.log('📧 User info:', userInfo);
+    
+    // Import database modules
+    const { db } = await import('../src/db/connection.js');
+    const { calendarEvents, users } = await import('../src/db/schema.js');
+    const { eq } = await import('drizzle-orm');
+    
+    // Create or get user based on email
+    console.log('🔍 Looking up user in database...');
+    let user = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, userInfo.email))
+      .limit(1);
+    
+    if (user.length === 0) {
+      console.log('👤 Creating new user:', userInfo.email);
+      const newUser = await db
+        .insert(users)
+        .values({
+          googleId: userInfo.id || `frontend-${Date.now()}`,
+          email: userInfo.email,
+          name: userInfo.name || 'Unknown User'
+        })
+        .returning();
+      user = newUser;
+    }
+    
+    const userId = user[0].id;
+    console.log(`📊 Using user ID: ${userId}`);
+    
+    // Clear existing events for this user
+    console.log('🗑️ Clearing existing events for user...');
+    await db
+      .delete(calendarEvents)
+      .where(eq(calendarEvents.userId, userId));
+    
+    // Process events in smaller batches to avoid constraint issues
+    console.log('📝 Processing events in batches...');
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i];
+      try {
+        const eventData = {
+          userId,
+          googleEventId: event.id,
+          title: event.summary || 'No Title',
+          description: event.description || null,
+          startDatetime: parseGoogleDateTime(event.start),
+          endDatetime: parseGoogleDateTime(event.end),
+          location: event.location || null,
+          attendees: event.attendees?.map(a => a.email) || [],
+          recurrence: event.recurrence?.join(',') || null,
+          isAllDay: !!(event.start?.date)
+        };
+        
+        await db.insert(calendarEvents).values(eventData);
+        successCount++;
+      } catch (eventError) {
+        console.error(`❌ Error inserting event ${i}:`, eventError);
+        errorCount++;
+      }
+    }
+    
+    console.log(`✅ Successfully synced ${successCount} events, ${errorCount} errors`);
+    
+    res.json({
+      success: true,
+      message: `Synced ${successCount} events to database (${errorCount} errors)`,
+      userId,
+      eventCount: successCount,
+      errorCount
+    });
+    
+  } catch (error) {
+    console.error('❌ Sync error:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      error: error.message,
+      details: error.stack
+    });
+  }
+});
+
+function parseGoogleDateTime(dateTimeObj) {
+  if (!dateTimeObj) return null;
+  const dateString = dateTimeObj.dateTime || dateTimeObj.date;
+  return dateString ? new Date(dateString) : null;
+}
+
 // Handle all auth requests
 app.all('/api/auth/*', async (req, res) => {
   if (req.method === 'POST' && req.path === '/api/auth/google-token') {
