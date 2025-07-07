@@ -15,6 +15,12 @@ class AuthService {
         keys: Object.keys(googleCredential || {})
       });
       
+      // Check if token is expired
+      if (googleCredential.expiresAt && Date.now() > googleCredential.expiresAt) {
+        console.log('⚠️ Access token expired, need to re-authenticate');
+        throw new Error('Access token expired. Please sign in again.');
+      }
+      
       // Send Google credential to backend to establish session
       const response = await fetch(`${API_BASE_URL}/api/auth/google-token`, {
         method: 'POST',
@@ -35,7 +41,17 @@ class AuthService {
         this.userSession = userData.user;
         return userData;
       } else {
-        throw new Error('Failed to establish backend session');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Backend session failed:', errorData);
+        
+        // If it's a 401 error, likely token expired
+        if (response.status === 401) {
+          console.log('🔄 Token invalid, clearing localStorage and requiring re-auth');
+          localStorage.removeItem('googleAuth');
+          throw new Error('Access token invalid. Please sign in again.');
+        }
+        
+        throw new Error(`Failed to establish backend session: ${errorData.error}`);
       }
     } catch (error) {
       console.error('❌ Backend session error:', error);

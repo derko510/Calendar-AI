@@ -37,7 +37,11 @@ const Dashboard = ({ userCredential }) => {
     } catch (error) {
       console.error('❌ Backend authentication failed:', error);
       setBackendAuth(false);
-      // Don't show error to user for now, RAG features just won't work
+      
+      // If token is expired, show a helpful message
+      if (error.message.includes('expired') || error.message.includes('invalid')) {
+        setError('Your Google access token has expired. Please sign out and sign in again to continue.');
+      }
     } finally {
       setAuthLoading(false);
     }
@@ -78,7 +82,16 @@ const Dashboard = ({ userCredential }) => {
       setLoading(false);
     } catch (err) {
       console.error('❌ Failed to load calendar events:', err);
-      setError(`Failed to load calendar: ${err.message}`);
+      
+      // Check if it's a token expiration error
+      if (err.message.includes('401') || err.message.includes('Unauthorized') || err.message.includes('invalid_token')) {
+        setError('Your Google access token has expired. Please sign out and sign in again to continue.');
+        // Clear expired token
+        localStorage.removeItem('googleAuth');
+      } else {
+        setError(`Failed to load calendar: ${err.message}`);
+      }
+      
       setLoading(false);
     }
   };
@@ -89,6 +102,14 @@ const Dashboard = ({ userCredential }) => {
   const handleSignOut = () => {
     localStorage.removeItem('googleAuth');
     localStorage.removeItem('googleCredential');
+    window.location.reload();
+  };
+
+  const handleTokenExpiredRetry = () => {
+    // Clear expired tokens and force re-authentication
+    localStorage.removeItem('googleAuth');
+    localStorage.removeItem('googleCredential');
+    setError(null);
     window.location.reload();
   };
 
@@ -109,6 +130,16 @@ const Dashboard = ({ userCredential }) => {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-8 mb-12 max-w-6xl mx-auto">
           <p className="text-red-600 text-center text-xl">{error}</p>
+          {error.includes('expired') && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={handleTokenExpiredRetry}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Sign In Again
+              </button>
+            </div>
+          )}
         </div>
       )}
 
