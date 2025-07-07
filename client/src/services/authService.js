@@ -9,6 +9,11 @@ class AuthService {
   async initializeBackendSession(googleCredential) {
     try {
       console.log('🔄 Initializing backend session...');
+      console.log('📝 Google credential structure:', {
+        hasAccessToken: !!googleCredential?.accessToken,
+        hasCredential: !!googleCredential?.credential,
+        keys: Object.keys(googleCredential || {})
+      });
       
       // Send Google credential to backend to establish session
       const response = await fetch(`${API_BASE_URL}/api/auth/google-token`, {
