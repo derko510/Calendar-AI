@@ -181,6 +181,11 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Test GET endpoint for auth
+app.get('/api/auth/test-auth', (req, res) => {
+  res.json({ message: 'Auth route works', timestamp: new Date().toISOString() });
+});
+
 // Temporary auth endpoint to bypass import issues
 app.post('/api/auth/google-token', async (req, res) => {
   try {
