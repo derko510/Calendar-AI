@@ -31,8 +31,16 @@ const Dashboard = ({ userCredential }) => {
     try {
       setAuthLoading(true);
       console.log('🔄 Establishing backend session...');
-      await authService.initializeBackendSession(userCredential);
-      console.log('✅ Backend authentication established');
+      console.log('📝 User credential data:', {
+        hasAccessToken: !!userCredential?.accessToken,
+        tokenLength: userCredential?.accessToken?.length,
+        hasExpiresAt: !!userCredential?.expiresAt,
+        isExpired: userCredential?.expiresAt ? Date.now() > userCredential.expiresAt : 'unknown',
+        timeUntilExpiry: userCredential?.expiresAt ? Math.max(0, userCredential.expiresAt - Date.now()) : 'unknown'
+      });
+      
+      const result = await authService.initializeBackendSession(userCredential);
+      console.log('✅ Backend authentication established:', result);
       setBackendAuth(true);
     } catch (error) {
       console.error('❌ Backend authentication failed:', error);

@@ -35,12 +35,39 @@ const RAGChatBot = ({ backendAuth }) => {
     setIsSyncing(true);
     try {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
+      
+      // First test if the session is valid
+      console.log('🔍 Testing session before sync...');
+      const sessionTest = await fetch(`${API_BASE_URL}/api/auth/user`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      
+      console.log('📊 Session test result:', {
+        status: sessionTest.status,
+        ok: sessionTest.ok,
+        headers: Object.fromEntries(sessionTest.headers.entries())
+      });
+      
+      if (!sessionTest.ok) {
+        console.error('❌ Session test failed:', sessionTest.status);
+        setSyncStatus('❌ Session expired - please refresh the page');
+        return;
+      }
+      
+      console.log('🔄 Session valid, proceeding with sync...');
       const response = await fetch(`${API_BASE_URL}/api/rag-chat/sync`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
+      });
+
+      console.log('📊 Sync response:', {
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
       });
 
       if (response.ok) {
@@ -55,11 +82,14 @@ const RAGChatBot = ({ backendAuth }) => {
         };
         setMessages(prev => [...prev, syncMessage]);
       } else {
-        throw new Error('Sync failed');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Sync failed:', errorData);
+        setSyncStatus(`❌ Sync failed: ${errorData.error || 'Unknown error'}`);
+        throw new Error(`Sync failed: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Sync error:', error);
-      setSyncStatus('❌ Sync failed');
+      setSyncStatus(`❌ Sync failed: ${error.message}`);
     } finally {
       setIsSyncing(false);
     }
