@@ -168,6 +168,23 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Environment test endpoint
+app.get('/api/env-test', (req, res) => {
+  console.log('🧪 Environment test endpoint hit');
+  res.json({ 
+    success: true, 
+    message: 'Backend environment check',
+    timestamp: new Date().toISOString(),
+    env: {
+      hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
+      hasSessionSecret: !!process.env.SESSION_SECRET,
+      nodeEnv: process.env.NODE_ENV
+    }
+  });
+});
+
 // Set up periodic calendar sync (every 30 minutes)
 const calendarSync = new CalendarSyncService();
 
