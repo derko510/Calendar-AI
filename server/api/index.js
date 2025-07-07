@@ -78,8 +78,24 @@ app.use(session({
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Allow cross-site cookies in production
   },
+  name: 'calendar-ai-session', // Custom session name
 }));
+
+// Session debugging middleware
+app.use((req, res, next) => {
+  console.log('🔍 Session Debug:', {
+    path: req.path,
+    method: req.method,
+    sessionID: req.sessionID,
+    hasSession: !!req.session,
+    hasUser: !!req.session?.user,
+    cookies: req.headers.cookie ? 'present' : 'missing',
+    origin: req.headers.origin
+  });
+  next();
+});
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
@@ -320,6 +336,21 @@ app.all('/api/auth/*', async (req, res) => {
         name: googleUser.name,
         accessToken: accessToken,
       };
+
+      // Force session save
+      req.session.save((err) => {
+        if (err) {
+          console.error('❌ Session save error:', err);
+        } else {
+          console.log('✅ Session saved successfully:', req.sessionID);
+        }
+      });
+
+      console.log('✅ Session created:', {
+        sessionID: req.sessionID,
+        userEmail: googleUser.email,
+        hasUser: !!req.session.user
+      });
 
       res.json({ 
         success: true,
