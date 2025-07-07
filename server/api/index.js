@@ -169,12 +169,14 @@ app.get('/api/health', (req, res) => {
     hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
     hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
     hasDatabaseUrl: !!process.env.DATABASE_URL,
-    hasSessionSecret: !!process.env.SESSION_SECRET
+    hasSessionSecret: !!process.env.SESSION_SECRET,
+    deployTime: new Date().toISOString()
   };
   
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
+    version: '1.1',
     env: envCheck
   });
 });
