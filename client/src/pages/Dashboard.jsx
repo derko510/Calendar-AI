@@ -19,21 +19,10 @@ const Dashboard = ({ userCredential }) => {
   }, []);
 
   useEffect(() => {
-    // Initialize backend session when user credential is available
-    if (userCredential && userCredential.accessToken) {
-      initializeBackendAuth();
-    } else if (authService.isAuthenticated) {
-      // If we have JWT auth but no userCredential, create one from JWT data
-      console.log('🔄 Creating user credential from JWT data');
-      const jwtUserCredential = {
-        accessToken: authService.userSession.accessToken || 'jwt-managed',
-        expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 hours from now
-        profile: authService.userSession
-      };
-      initializeBackendAuth(jwtUserCredential);
-    } else {
-      setAuthLoading(false);
-    }
+    // Skip backend authentication for now - just use direct Google token access
+    console.log('ℹ️ Skipping backend authentication - using direct Google token access');
+    setAuthLoading(false);
+    setBackendAuth(false); // Use RealCalendarBot instead of RAGChatBot
   }, [userCredential]);
 
   const initializeBackendAuth = async (credentialOverride = null) => {
@@ -130,7 +119,7 @@ const Dashboard = ({ userCredential }) => {
     // Clear all authentication data
     localStorage.removeItem('googleAuth');
     localStorage.removeItem('googleCredential');
-    authService.logout(); // This clears JWT tokens
+    console.log('🔄 Signing out - cleared all localStorage data');
     window.location.reload();
   };
 
@@ -138,7 +127,7 @@ const Dashboard = ({ userCredential }) => {
     // Clear expired tokens and force re-authentication
     localStorage.removeItem('googleAuth');
     localStorage.removeItem('googleCredential');
-    authService.clearToken(); // Clear JWT tokens too
+    console.log('🔄 Retrying authentication - cleared all localStorage data');
     setError(null);
     window.location.reload();
   };
