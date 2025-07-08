@@ -122,7 +122,7 @@ router.post('/sync-frontend-data', async (req, res) => {
 // Chat with real calendar data
 router.post('/chat', async (req, res) => {
   try {
-    const { message, userEmail, accessToken } = req.body;
+    const { message, userEmail, accessToken, conversationContext } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
@@ -159,8 +159,8 @@ router.post('/chat', async (req, res) => {
     const { RAGService } = await import('../services/ragService.js');
     const ragService = new RAGService();
     
-    // Use the existing RAG service
-    const result = await ragService.processQuery(userId, message);
+    // Use the existing RAG service with conversation context
+    const result = await ragService.processQuery(userId, message, conversationContext || {});
     
     // The RAG service returns a structured response, so send it directly
     res.json(result);

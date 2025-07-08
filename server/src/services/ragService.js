@@ -16,17 +16,20 @@ export class RAGService {
     this.calendarSync = new CalendarSyncService();
   }
 
-  async processQuery(userId, userMessage) {
+  async processQuery(userId, userMessage, conversationContext = {}) {
     try {
-      // Step 1: Determine query intent
-      const intent = await this.parseIntent(userMessage);
+      // Step 1: Resolve contextual references in the message
+      const resolvedMessage = await this.resolveContextualReferences(userMessage, conversationContext);
+      
+      // Step 2: Determine query intent
+      const intent = await this.parseIntent(resolvedMessage);
       
       if (intent.type === 'CREATE_EVENT') {
-        return await this.handleCreateEvent(userId, userMessage, intent);
+        return await this.handleCreateEvent(userId, resolvedMessage, intent, conversationContext);
       } else if (intent.type === 'DELETE_EVENT') {
-        return await this.handleDeleteEvent(userId, userMessage, intent);
+        return await this.handleDeleteEvent(userId, resolvedMessage, intent, conversationContext);
       } else if (intent.type === 'QUERY_EVENTS') {
-        return await this.handleQueryEvents(userId, userMessage, intent);
+        return await this.handleQueryEvents(userId, resolvedMessage, intent);
       }
       
       return {
@@ -39,6 +42,46 @@ export class RAGService {
         success: false,
         message: "Sorry, I encountered an error processing your request."
       };
+    }
+  }
+
+  async resolveContextualReferences(userMessage, conversationContext) {
+    // Check if message contains contextual references that need resolution
+    const contextualWords = ['that', 'it', 'the event', 'the meeting', 'that event', 'that meeting'];
+    const hasContextualReference = contextualWords.some(word => 
+      userMessage.toLowerCase().includes(word.toLowerCase())
+    );
+
+    if (!hasContextualReference || !conversationContext.recentEvents?.length) {
+      return userMessage; // No context needed or available
+    }
+
+    const prompt = `
+Resolve contextual references in this message using conversation context:
+
+User message: "${userMessage}"
+
+Recent conversation context:
+${conversationContext.recentEvents?.map((event, index) => 
+  `${index + 1}. Recently ${event.operation}d: "${event.title}" on ${event.date} at ${event.time || 'all day'}`
+).join('\n') || 'No recent events'}
+
+Last operation: ${conversationContext.lastOperation || 'None'}
+
+Replace pronouns and references like "that event", "it", "that meeting" with specific event details.
+
+Examples:
+- "delete that event" → "delete [specific event title] on [date]"
+- "cancel it" → "cancel [specific event title] on [date]"
+
+Return the resolved message:`;
+
+    try {
+      const response = await this.llm.generate(prompt, { temperature: 0.1 });
+      return response.trim() || userMessage; // Fallback to original if LLM fails
+    } catch (error) {
+      console.error('Error resolving contextual references:', error);
+      return userMessage; // Fallback to original message
     }
   }
 
@@ -186,7 +229,7 @@ Be specific about dates and times when possible.
     return response;
   }
 
-  async handleCreateEvent(userId, userMessage, intent) {
+  async handleCreateEvent(userId, userMessage, intent, conversationContext = {}) {
     try {
       // Step 1: Parse the natural language to extract event details
       const eventDetails = await this.parseEventDetails(userMessage);
@@ -211,10 +254,24 @@ Be specific about dates and times when possible.
       // Step 3: Sync the new event to our database
       await this.syncNewEventToDatabase(userId, createdEvent.event);
 
+      // Step 4: Update conversation context
+      const eventContext = {
+        operation: 'create',
+        title: eventDetails.data.title,
+        date: eventDetails.data.startDate,
+        time: eventDetails.data.startTime,
+        googleEventId: createdEvent.event.id,
+        timestamp: new Date()
+      };
+
       return {
         success: true,
         message: `✅ Created event "${eventDetails.data.title}" on ${eventDetails.data.startDate} at ${eventDetails.data.startTime}`,
-        event: createdEvent.event
+        event: createdEvent.event,
+        conversationUpdate: {
+          recentEvents: [eventContext, ...(conversationContext.recentEvents || [])].slice(0, 5), // Keep last 5 events
+          lastOperation: 'create'
+        }
       };
     } catch (error) {
       console.error('Error creating event:', error);
@@ -225,7 +282,7 @@ Be specific about dates and times when possible.
     }
   }
 
-  async handleDeleteEvent(userId, userMessage, intent) {
+  async handleDeleteEvent(userId, userMessage, intent, conversationContext = {}) {
     try {
       // Step 1: Find events matching the deletion criteria
       const matchingEvents = await this.findEventsToDelete(userId, userMessage, intent);
@@ -260,10 +317,24 @@ Be specific about dates and times when possible.
       // Step 3: Remove from our database
       await this.removeEventFromDatabase(eventToDelete.id);
 
+      // Step 4: Update conversation context
+      const eventContext = {
+        operation: 'delete',
+        title: eventToDelete.title,
+        date: new Date(eventToDelete.startDatetime).toLocaleDateString(),
+        time: eventToDelete.isAllDay ? 'all day' : new Date(eventToDelete.startDatetime).toLocaleTimeString(),
+        googleEventId: eventToDelete.googleEventId,
+        timestamp: new Date()
+      };
+
       return {
         success: true,
         message: `✅ Deleted event "${eventToDelete.title}" on ${new Date(eventToDelete.startDatetime).toLocaleDateString()}`,
-        deletedEvent: eventToDelete
+        deletedEvent: eventToDelete,
+        conversationUpdate: {
+          recentEvents: [eventContext, ...(conversationContext.recentEvents || [])].slice(0, 5), // Keep last 5 events
+          lastOperation: 'delete'
+        }
       };
     } catch (error) {
       console.error('Error deleting event:', error);
