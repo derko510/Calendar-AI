@@ -20,7 +20,6 @@ const Dashboard = ({ userCredential }) => {
 
   useEffect(() => {
     // Skip backend authentication for now - just use direct Google token access
-    console.log('ℹ️ Skipping backend authentication - using direct Google token access');
     setAuthLoading(false);
     setBackendAuth(false); // Use RealCalendarBot instead of RAGChatBot
   }, [userCredential]);
@@ -30,25 +29,13 @@ const Dashboard = ({ userCredential }) => {
       setAuthLoading(true);
       const credential = credentialOverride || userCredential;
       
-      console.log('🔄 Establishing backend session...');
-      console.log('📝 User credential data:', {
-        hasAccessToken: !!credential?.accessToken,
-        tokenLength: credential?.accessToken?.length,
-        hasExpiresAt: !!credential?.expiresAt,
-        isExpired: credential?.expiresAt ? Date.now() > credential.expiresAt : 'unknown',
-        timeUntilExpiry: credential?.expiresAt ? Math.max(0, credential.expiresAt - Date.now()) : 'unknown',
-        isJWTManaged: credential?.accessToken === 'jwt-managed'
-      });
-      
       // If we already have a JWT token, just set backend auth to true
       if (authService.isAuthenticated && authService.jwtToken) {
-        console.log('✅ Using existing JWT authentication');
         setBackendAuth(true);
         return;
       }
       
       const result = await authService.initializeBackendSession(credential);
-      console.log('✅ Backend authentication established:', result);
       setBackendAuth(true);
     } catch (error) {
       console.error('❌ Backend authentication failed:', error);
@@ -66,10 +53,7 @@ const Dashboard = ({ userCredential }) => {
   const initializeCalendar = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Loading Google Calendar data...');
-      
       if (userCredential && userCredential.accessToken) {
-        console.log('✅ Access token found, fetching calendar events');
         googleCalendarService.setAccessToken(userCredential.accessToken);
         
         // Get events from the past 3 months to next 3 months
@@ -85,13 +69,13 @@ const Dashboard = ({ userCredential }) => {
           250
         );
         
-        console.log('📅 Google Calendar events loaded:', calendarEvents.length, 'events');
+        // Calendar events loaded successfully
         setEvents(calendarEvents);
         setError(null);
 
         // Note: Backend sync removed for simple mode
       } else {
-        console.error('❌ No access token available');
+        // No access token available
         setError('No access token available. Please sign in again.');
       }
       
@@ -119,7 +103,6 @@ const Dashboard = ({ userCredential }) => {
     // Clear all authentication data
     localStorage.removeItem('googleAuth');
     localStorage.removeItem('googleCredential');
-    console.log('🔄 Signing out - cleared all localStorage data');
     window.location.reload();
   };
 
@@ -127,7 +110,6 @@ const Dashboard = ({ userCredential }) => {
     // Clear expired tokens and force re-authentication
     localStorage.removeItem('googleAuth');
     localStorage.removeItem('googleCredential');
-    console.log('🔄 Retrying authentication - cleared all localStorage data');
     setError(null);
     window.location.reload();
   };
@@ -170,8 +152,8 @@ const Dashboard = ({ userCredential }) => {
             <GoogleCalendar
               events={events}
               loading={loading}
-              onDateSelect={(date) => console.log('Selected date:', date)}
-              onEventClick={(event) => console.log('Clicked event:', event)}
+              onDateSelect={(date) => {}}
+              onEventClick={(event) => {}}
               onSignOut={handleSignOut}
             />
           </div>

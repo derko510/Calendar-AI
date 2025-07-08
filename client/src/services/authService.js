@@ -10,10 +10,8 @@ class AuthService {
 
   async loadTokenFromStorage() {
     try {
-      console.log('🔍 Loading JWT token from localStorage...');
       const token = localStorage.getItem('calendar-ai-jwt');
       if (token) {
-        console.log('📝 Found JWT token in storage, verifying...');
         // Verify token isn't expired
         const payload = this.parseJWT(token);
         if (payload && payload.exp * 1000 > Date.now()) {
@@ -26,16 +24,12 @@ class AuthService {
             accessToken: payload.accessToken
           };
           this.isAuthenticated = true;
-          console.log('✅ JWT token loaded from storage for:', payload.email);
-          console.log('📊 Token expires at:', new Date(payload.exp * 1000).toISOString());
           return true;
         } else {
-          console.log('⚠️ Stored JWT token is expired, clearing...');
           this.clearToken();
           return false;
         }
       } else {
-        console.log('ℹ️ No JWT token found in localStorage');
         return false;
       }
     } catch (error) {
@@ -65,14 +59,12 @@ class AuthService {
       this.jwtToken = token;
       this.userSession = user;
       this.isAuthenticated = true;
-      console.log('✅ JWT token saved for:', user.email);
     } catch (error) {
       console.error('Error saving JWT token:', error);
     }
   }
 
   clearToken() {
-    console.log('🗑️ Clearing JWT token from storage');
     localStorage.removeItem('calendar-ai-jwt');
     this.jwtToken = null;
     this.userSession = null;
@@ -93,16 +85,8 @@ class AuthService {
 
   async initializeBackendSession(googleCredential) {
     try {
-      console.log('🔄 Initializing JWT-based authentication...');
-      console.log('📝 Google credential structure:', {
-        hasAccessToken: !!googleCredential?.accessToken,
-        hasCredential: !!googleCredential?.credential,
-        keys: Object.keys(googleCredential || {})
-      });
-      
       // Check if token is expired
       if (googleCredential.expiresAt && Date.now() > googleCredential.expiresAt) {
-        console.log('⚠️ Access token expired, need to re-authenticate');
         throw new Error('Access token expired. Please sign in again.');
       }
       
@@ -120,22 +104,19 @@ class AuthService {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ JWT authentication established');
         
         if (data.token) {
           // Save JWT token
           this.saveToken(data.token, data.user);
-          console.log('✅ JWT token saved to localStorage');
         }
         
         return data;
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('❌ JWT authentication failed:', errorData);
+        console.error('JWT authentication failed:', errorData);
         
         // If it's a 401 error, likely token expired
         if (response.status === 401) {
-          console.log('🔄 Token invalid, clearing localStorage and requiring re-auth');
           localStorage.removeItem('googleAuth');
           this.clearToken();
           throw new Error('Access token invalid. Please sign in again.');
@@ -144,7 +125,7 @@ class AuthService {
         throw new Error(`Failed to establish JWT authentication: ${errorData.error}`);
       }
     } catch (error) {
-      console.error('❌ JWT authentication error:', error);
+      console.error('JWT authentication error:', error);
       throw error;
     }
   }
@@ -153,7 +134,6 @@ class AuthService {
     try {
       // If we don't have a JWT token, we're not authenticated
       if (!this.jwtToken) {
-        console.log('ℹ️ No JWT token available');
         this.isAuthenticated = false;
         this.userSession = null;
         return null;
@@ -167,10 +147,8 @@ class AuthService {
 
       if (response.ok) {
         const userData = await response.json();
-        console.log('✅ JWT token is valid');
         return { user: userData.user || this.userSession };
       } else {
-        console.log('❌ JWT token is invalid or expired');
         this.clearToken();
         return null;
       }
@@ -185,7 +163,6 @@ class AuthService {
     try {
       // Clear JWT token
       this.clearToken();
-      console.log('✅ JWT logout successful');
     } catch (error) {
       console.error('Logout error:', error);
     }

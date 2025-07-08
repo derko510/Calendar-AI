@@ -10,8 +10,6 @@ function App() {
   const [userCredential, setUserCredential] = useState(null);
 
   useEffect(() => {
-    console.log('🔍 Checking for saved Google authentication...');
-    
     // Check for Google auth in localStorage
     const savedAuth = localStorage.getItem('googleAuth');
     if (savedAuth) {
@@ -19,30 +17,22 @@ function App() {
         const userData = JSON.parse(savedAuth);
         // Check if token is still valid (with some buffer time)
         if (userData.expiresAt && userData.expiresAt > Date.now()) {
-          console.log('✅ Valid Google auth found on app load for token expiring at:', new Date(userData.expiresAt));
           setIsAuthenticated(true);
           setUserCredential(userData);
         } else {
           // Token expired, remove from storage
-          console.log('⚠️ Google auth token expired, clearing...', new Date(userData.expiresAt || 0));
           localStorage.removeItem('googleAuth');
         }
       } catch (error) {
         console.error('Error parsing saved auth:', error);
         localStorage.removeItem('googleAuth');
       }
-    } else {
-      console.log('ℹ️ No saved Google authentication found');
     }
   }, []);
 
   const handleLoginSuccess = (credentialResponse) => {
-    console.log('🔄 Login success, setting authentication state');
     setIsAuthenticated(true);
     setUserCredential(credentialResponse);
-    
-    // The JWT token will be saved by the authService during backend initialization
-    console.log('✅ App authentication state updated');
   };
 
   return (

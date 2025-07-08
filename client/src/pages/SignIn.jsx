@@ -35,15 +35,6 @@ const SignIn = ({ onLoginSuccess }) => {
     
     const scope = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events';
     
-    console.log('=== OAuth Debug Info ===');
-    console.log('Client ID:', clientId);
-    console.log('Current URL:', window.location.href);
-    console.log('Window Origin:', window.location.origin);
-    console.log('Redirect URI (cleaned):', redirectUri);
-    console.log('Protocol:', window.location.protocol);
-    console.log('Hostname:', window.location.hostname);
-    console.log('Port:', window.location.port);
-    
     // Use authorization code flow
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${encodeURIComponent(clientId)}&` +
@@ -53,22 +44,11 @@ const SignIn = ({ onLoginSuccess }) => {
       `include_granted_scopes=true&` +
       `state=calendar_auth`;
     
-    console.log('=== Full Auth URL ===');
-    console.log(authUrl);
-    console.log('========================');
-    
-    // Give user a chance to see the debug info before redirecting
-    setTimeout(() => {
-      window.location.href = authUrl;
-    }, 1000);
+    window.location.href = authUrl;
   };
 
   // Check for OAuth callback in URL
   useEffect(() => {
-    console.log('=== Checking for OAuth callback ===');
-    console.log('Current URL:', window.location.href);
-    console.log('Hash:', window.location.hash);
-    
     // Check for error in URL first
     const urlParams = new URLSearchParams(window.location.search);
     const error = urlParams.get('error');
@@ -89,16 +69,7 @@ const SignIn = ({ onLoginSuccess }) => {
     const tokenType = hashParams.get('token_type');
     const scope = hashParams.get('scope');
     
-    console.log('Hash params:', {
-      accessToken: accessToken ? 'Found' : 'Not found',
-      expiresIn,
-      state,
-      tokenType,
-      scope
-    });
-    
     if (accessToken && state === 'calendar_auth') {
-      console.log('✅ OAuth success! Processing token...');
       const expiresAt = Date.now() + (parseInt(expiresIn) * 1000);
       
       const userData = {
@@ -112,14 +83,11 @@ const SignIn = ({ onLoginSuccess }) => {
       };
 
       localStorage.setItem('googleAuth', JSON.stringify(userData));
-      console.log('Saved auth data to localStorage');
       
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
       
       onLoginSuccess(userData);
-    } else if (window.location.hash && !accessToken) {
-      console.warn('Hash found but no access token:', window.location.hash);
     }
   }, [onLoginSuccess]);
 

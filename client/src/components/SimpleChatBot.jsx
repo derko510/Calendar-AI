@@ -30,8 +30,6 @@ const SimpleChatBot = () => {
   const checkConnection = async () => {
     try {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
-      console.log('🔄 Checking connection to:', `${API_BASE_URL}/api/chat/health`);
-      console.log('🌐 Current window.location.origin:', window.location.origin);
       
       const response = await fetch(`${API_BASE_URL}/api/chat/health`, {
         method: 'GET',
@@ -41,28 +39,21 @@ const SimpleChatBot = () => {
         },
       });
       
-      console.log('📡 Response status:', response.status, response.ok);
-      
       if (response.ok) {
         const text = await response.text();
-        console.log('📄 Raw response:', text);
         try {
           const data = JSON.parse(text);
-          console.log('📊 Health data:', data);
           setConnectionStatus(data.ollama ? 'connected' : 'ollama-down');
         } catch (parseError) {
-          console.error('❌ JSON parse error:', parseError);
-          console.error('Response was:', text);
+          console.error('JSON parse error:', parseError);
           setConnectionStatus('server-down');
         }
       } else {
-        const errorText = await response.text();
-        console.error('❌ Server responded with error:', response.status, errorText);
+        console.error('Server responded with error:', response.status);
         setConnectionStatus('server-down');
       }
     } catch (error) {
-      console.error('❌ Connection check failed:', error);
-      console.error('Error details:', error.message);
+      console.error('Connection check failed:', error);
       setConnectionStatus('server-down');
     }
   };
@@ -84,7 +75,6 @@ const SimpleChatBot = () => {
 
     try {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
-      console.log('💬 Sending message to:', `${API_BASE_URL}/api/chat/message`);
       
       const response = await fetch(`${API_BASE_URL}/api/chat/message`, {
         method: 'POST',
