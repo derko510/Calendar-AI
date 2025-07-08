@@ -46,7 +46,8 @@ app.use(cors({
       'http://127.0.0.1:3000',
       'http://localhost:3001',
       'http://127.0.0.1:3001',
-      'https://derricks-calendar-ai.vercel.app'
+      'https://derricks-calendar-ai.vercel.app',
+      'https://client-git-dev-derricks-projects-0ffc821f.vercel.app'
     ];
     
     console.log('🌐 CORS request from origin:', origin);
