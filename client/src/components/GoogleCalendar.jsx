@@ -52,13 +52,36 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
       timeRange = 'All day';
     }
     
-    const description = event.description || 'No description';
+    // Build tooltip content like Google Calendar
+    const title = event.summary || event.title || 'Untitled Event';
+    const location = event.location ? `📍 ${event.location}` : '';
+    const description = event.description ? `📝 ${event.description}` : '';
+    const organizer = event.organizer?.displayName || event.organizer?.email || '';
+    const attendeesCount = event.attendees ? event.attendees.length : 0;
+    
+    let tooltipParts = [
+      `🗓️ ${title}`,
+      `⏰ ${timeRange}`
+    ];
+    
+    if (location) tooltipParts.push(location);
+    if (organizer) tooltipParts.push(`👤 ${organizer}`);
+    if (attendeesCount > 0) tooltipParts.push(`👥 ${attendeesCount} attendee${attendeesCount > 1 ? 's' : ''}`);
+    if (description && description.length < 100) tooltipParts.push(description);
     
     setTooltip({
       visible: true,
       x: rect.left + rect.width / 2,
       y: rect.top - 10,
-      content: `${timeRange}\n${description}`
+      content: tooltipParts.join('\n'),
+      event: {
+        title,
+        timeRange,
+        location: event.location,
+        description: event.description,
+        organizer,
+        attendeesCount
+      }
     });
   };
 
@@ -322,21 +345,75 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
         {renderContent()}
       </div>
       
-      {/* Custom Tooltip */}
+      {/* Enhanced Google-style Tooltip */}
       {tooltip.visible && (
         <div
-          className="fixed bg-gray-900 text-white text-xs p-3 rounded-lg shadow-lg z-50 max-w-xs pointer-events-none"
+          className="fixed bg-white border border-gray-300 shadow-2xl rounded-lg z-50 max-w-sm pointer-events-none"
           style={{
             left: `${tooltip.x}px`,
             top: `${tooltip.y}px`,
             transform: 'translateX(-50%) translateY(-100%)'
           }}
         >
-          <div className="whitespace-pre-line font-medium">
-            {tooltip.content}
+          <div className="p-4">
+            {/* Event Title */}
+            {tooltip.event && (
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900 text-sm leading-tight">
+                  {tooltip.event.title}
+                </div>
+                
+                {/* Time */}
+                <div className="flex items-center text-gray-600 text-xs">
+                  <span className="mr-1">⏰</span>
+                  {tooltip.event.timeRange}
+                </div>
+                
+                {/* Location */}
+                {tooltip.event.location && (
+                  <div className="flex items-center text-gray-600 text-xs">
+                    <span className="mr-1">📍</span>
+                    <span className="truncate">{tooltip.event.location}</span>
+                  </div>
+                )}
+                
+                {/* Organizer */}
+                {tooltip.event.organizer && (
+                  <div className="flex items-center text-gray-600 text-xs">
+                    <span className="mr-1">👤</span>
+                    <span className="truncate">{tooltip.event.organizer}</span>
+                  </div>
+                )}
+                
+                {/* Attendees */}
+                {tooltip.event.attendeesCount > 0 && (
+                  <div className="flex items-center text-gray-600 text-xs">
+                    <span className="mr-1">👥</span>
+                    {tooltip.event.attendeesCount} attendee{tooltip.event.attendeesCount > 1 ? 's' : ''}
+                  </div>
+                )}
+                
+                {/* Description */}
+                {tooltip.event.description && tooltip.event.description.length < 100 && (
+                  <div className="text-gray-700 text-xs pt-2 border-t border-gray-200 mt-2">
+                    <span className="text-gray-500 mr-1">📝</span>
+                    <span className="leading-relaxed">{tooltip.event.description}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Fallback for simple content */}
+            {!tooltip.event && (
+              <div className="whitespace-pre-line text-gray-900 text-xs">
+                {tooltip.content}
+              </div>
+            )}
           </div>
+          
           {/* Tooltip arrow */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 translate-y-[-1px] w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-300"></div>
         </div>
       )}
     </div>
