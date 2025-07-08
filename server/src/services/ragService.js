@@ -2,7 +2,7 @@ import { OllamaService } from './ollamaService.js';
 import { CloudLLMService } from './cloudLLM.js';
 import { CalendarSyncService } from './calendarSync.js';
 import { db } from '../db/connection.js';
-import { calendarEvents } from '../db/schema.js';
+import { calendarEvents, users } from '../db/schema.js';
 import { eq, and, or, ilike, desc, asc, gte, lte } from 'drizzle-orm';
 
 export class RAGService {
@@ -182,10 +182,219 @@ Be specific about dates and times when possible.
   }
 
   async handleCreateEvent(userId, userMessage, intent) {
-    // For now, return a message indicating this feature is coming soon
-    return {
-      success: false,
-      message: "Event creation is coming soon! For now, I can help you find and query your existing calendar events."
-    };
+    try {
+      // Step 1: Parse the natural language to extract event details
+      const eventDetails = await this.parseEventDetails(userMessage);
+      
+      if (!eventDetails.success) {
+        return {
+          success: false,
+          message: eventDetails.message || "I couldn't understand the event details. Please try again with more specific information."
+        };
+      }
+
+      // Step 2: Create the event in Google Calendar
+      const createdEvent = await this.createGoogleCalendarEvent(userId, eventDetails.data);
+      
+      if (!createdEvent.success) {
+        return {
+          success: false,
+          message: createdEvent.message || "Failed to create the event in your calendar."
+        };
+      }
+
+      // Step 3: Sync the new event to our database
+      await this.syncNewEventToDatabase(userId, createdEvent.event);
+
+      return {
+        success: true,
+        message: `✅ Created event "${eventDetails.data.title}" on ${eventDetails.data.startDate} at ${eventDetails.data.startTime}`,
+        event: createdEvent.event
+      };
+    } catch (error) {
+      console.error('Error creating event:', error);
+      return {
+        success: false,
+        message: "Sorry, I encountered an error while creating your event. Please try again."
+      };
+    }
+  }
+
+  async parseEventDetails(userMessage) {
+    const prompt = `
+Extract event details from this natural language request and respond with JSON:
+
+User message: "${userMessage}"
+
+Extract the following information:
+- title: Event title/summary
+- date: Date in YYYY-MM-DD format (if relative like "tomorrow", calculate the actual date)
+- startTime: Start time in HH:MM format (24-hour)
+- endTime: End time in HH:MM format (24-hour) - if not specified, add 1 hour to start time
+- location: Location if mentioned
+- description: Additional details
+- isAllDay: true if it's an all-day event, false otherwise
+- recurrence: RRULE string if it's recurring (e.g., "RRULE:FREQ=WEEKLY")
+
+Current date for reference: ${new Date().toISOString().split('T')[0]}
+
+Respond with JSON in this exact format:
+{
+  "title": "Event Title",
+  "date": "2025-07-08",
+  "startTime": "15:00",
+  "endTime": "16:00",
+  "location": null,
+  "description": null,
+  "isAllDay": false,
+  "recurrence": null
+}
+
+If you cannot extract clear event details, respond with:
+{
+  "error": "Could not parse event details. Please specify title, date, and time."
+}
+`;
+
+    try {
+      const response = await this.llm.generate(prompt, { temperature: 0.1 });
+      
+      // Extract JSON from response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in LLM response');
+      }
+      
+      const eventData = JSON.parse(jsonMatch[0]);
+      
+      if (eventData.error) {
+        return {
+          success: false,
+          message: eventData.error
+        };
+      }
+
+      // Validate required fields
+      if (!eventData.title || !eventData.date || (!eventData.isAllDay && !eventData.startTime)) {
+        return {
+          success: false,
+          message: "Please provide at least a title, date, and time for the event."
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          title: eventData.title,
+          startDate: eventData.date,
+          startTime: eventData.startTime,
+          endTime: eventData.endTime,
+          location: eventData.location,
+          description: eventData.description,
+          isAllDay: eventData.isAllDay,
+          recurrence: eventData.recurrence
+        }
+      };
+    } catch (error) {
+      console.error('Error parsing event details:', error);
+      return {
+        success: false,
+        message: "I had trouble understanding your event details. Please try again with a clear format like 'Schedule dinner with John at 7 PM tomorrow'."
+      };
+    }
+  }
+
+  async createGoogleCalendarEvent(userId, eventDetails) {
+    try {
+      // Get user's access token
+      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (user.length === 0) {
+        return { success: false, message: "User not found" };
+      }
+
+      const accessToken = user[0].accessToken;
+      if (!accessToken) {
+        return { success: false, message: "No Google access token available. Please re-authenticate." };
+      }
+
+      // Prepare event data for Google Calendar API
+      const startDateTime = eventDetails.isAllDay 
+        ? { date: eventDetails.startDate }
+        : { 
+            dateTime: `${eventDetails.startDate}T${eventDetails.startTime}:00`,
+            timeZone: 'America/Los_Angeles' // TODO: Make this configurable
+          };
+
+      const endDateTime = eventDetails.isAllDay
+        ? { date: eventDetails.startDate }
+        : {
+            dateTime: `${eventDetails.startDate}T${eventDetails.endTime}:00`,
+            timeZone: 'America/Los_Angeles'
+          };
+
+      const googleEvent = {
+        summary: eventDetails.title,
+        start: startDateTime,
+        end: endDateTime,
+        description: eventDetails.description,
+        location: eventDetails.location
+      };
+
+      if (eventDetails.recurrence) {
+        googleEvent.recurrence = [eventDetails.recurrence];
+      }
+
+      // Call Google Calendar API
+      const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(googleEvent)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Google Calendar API error:', errorText);
+        return { success: false, message: "Failed to create event in Google Calendar" };
+      }
+
+      const createdEvent = await response.json();
+      return { success: true, event: createdEvent };
+    } catch (error) {
+      console.error('Error creating Google Calendar event:', error);
+      return { success: false, message: "Failed to create event in Google Calendar" };
+    }
+  }
+
+  async syncNewEventToDatabase(userId, googleEvent) {
+    try {
+      const eventData = {
+        userId,
+        googleEventId: googleEvent.id,
+        title: googleEvent.summary || 'No Title',
+        description: googleEvent.description || null,
+        startDatetime: this.parseDateTime(googleEvent.start),
+        endDatetime: this.parseDateTime(googleEvent.end),
+        location: googleEvent.location || null,
+        attendees: googleEvent.attendees?.map(a => a.email) || [],
+        recurrence: googleEvent.recurrence?.join(',') || null,
+        isAllDay: !!(googleEvent.start?.date),
+        updatedAt: new Date()
+      };
+
+      await db.insert(calendarEvents).values(eventData);
+      console.log('✅ New event synced to database');
+    } catch (error) {
+      console.error('Error syncing new event to database:', error);
+      // Don't throw error - event was created successfully in Google Calendar
+    }
+  }
+
+  parseDateTime(dateTimeObj) {
+    if (!dateTimeObj) return null;
+    const dateString = dateTimeObj.dateTime || dateTimeObj.date;
+    return dateString ? new Date(dateString) : null;
   }
 }
