@@ -53,12 +53,19 @@ app.use(cors({
     ];
     
     console.log('🌐 CORS request from origin:', origin);
+    console.log('🔍 Allowed origins:', allowedOrigins);
     
     if (allowedOrigins.includes(origin)) {
       console.log('✅ Origin allowed:', origin);
       return callback(null, true);
     } else {
       console.log('❌ Origin blocked:', origin);
+      console.log('❌ Exact match check:', allowedOrigins.map(url => `"${url}" === "${origin}" ? ${url === origin}`));
+      // For dev branch, be more permissive
+      if (origin && (origin.includes('client-git-dev-derricks-projects') || origin.includes('localhost'))) {
+        console.log('🟡 Dev override: allowing origin');
+        return callback(null, true);
+      }
       return callback(new Error('Not allowed by CORS'), false);
     }
   },
