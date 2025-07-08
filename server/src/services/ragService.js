@@ -23,6 +23,8 @@ export class RAGService {
       
       if (intent.type === 'CREATE_EVENT') {
         return await this.handleCreateEvent(userId, userMessage, intent);
+      } else if (intent.type === 'DELETE_EVENT') {
+        return await this.handleDeleteEvent(userId, userMessage, intent);
       } else if (intent.type === 'QUERY_EVENTS') {
         return await this.handleQueryEvents(userId, userMessage, intent);
       }
@@ -48,7 +50,7 @@ User message: "${userMessage}"
 
 Respond with JSON in this format:
 {
-  "type": "CREATE_EVENT" or "QUERY_EVENTS",
+  "type": "CREATE_EVENT" or "DELETE_EVENT" or "QUERY_EVENTS",
   "keywords": ["array", "of", "relevant", "keywords"],
   "timeframe": "past" or "future" or "specific_date" or null,
   "date_mentioned": "YYYY-MM-DD" or null
@@ -58,6 +60,9 @@ Examples:
 - "When was my last dentist appointment?" → {"type": "QUERY_EVENTS", "keywords": ["dentist"], "timeframe": "past"}
 - "What meetings do I have tomorrow?" → {"type": "QUERY_EVENTS", "keywords": ["meeting"], "timeframe": "future"}
 - "Schedule dinner with John at 7 PM Friday" → {"type": "CREATE_EVENT", "keywords": ["dinner", "John"]}
+- "Delete my lunch meeting today" → {"type": "DELETE_EVENT", "keywords": ["lunch", "meeting"], "timeframe": "specific_date"}
+- "Cancel the dentist appointment" → {"type": "DELETE_EVENT", "keywords": ["dentist"], "timeframe": null}
+- "Remove gym session tomorrow" → {"type": "DELETE_EVENT", "keywords": ["gym"], "timeframe": "future"}
 `;
 
     const response = await this.llm.generate(prompt, { temperature: 0.1 });
@@ -216,6 +221,55 @@ Be specific about dates and times when possible.
       return {
         success: false,
         message: "Sorry, I encountered an error while creating your event. Please try again."
+      };
+    }
+  }
+
+  async handleDeleteEvent(userId, userMessage, intent) {
+    try {
+      // Step 1: Find events matching the deletion criteria
+      const matchingEvents = await this.findEventsToDelete(userId, userMessage, intent);
+      
+      if (!matchingEvents.success) {
+        return matchingEvents;
+      }
+
+      if (matchingEvents.events.length === 0) {
+        return {
+          success: false,
+          message: "I couldn't find any events matching your deletion request. Please be more specific."
+        };
+      }
+
+      if (matchingEvents.events.length > 1) {
+        return {
+          success: false,
+          message: `I found ${matchingEvents.events.length} events that match your request. Please be more specific about which event to delete.`,
+          events: matchingEvents.events.slice(0, 3) // Show first 3 matches
+        };
+      }
+
+      // Step 2: Delete the single matching event
+      const eventToDelete = matchingEvents.events[0];
+      const deleteResult = await this.deleteGoogleCalendarEvent(userId, eventToDelete);
+      
+      if (!deleteResult.success) {
+        return deleteResult;
+      }
+
+      // Step 3: Remove from our database
+      await this.removeEventFromDatabase(eventToDelete.id);
+
+      return {
+        success: true,
+        message: `✅ Deleted event "${eventToDelete.title}" on ${new Date(eventToDelete.startDatetime).toLocaleDateString()}`,
+        deletedEvent: eventToDelete
+      };
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      return {
+        success: false,
+        message: "Sorry, I encountered an error while deleting your event. Please try again."
       };
     }
   }
@@ -396,5 +450,128 @@ If you cannot extract clear event details, respond with:
     if (!dateTimeObj) return null;
     const dateString = dateTimeObj.dateTime || dateTimeObj.date;
     return dateString ? new Date(dateString) : null;
+  }
+
+  async findEventsToDelete(userId, userMessage, intent) {
+    try {
+      // Use existing search functionality but with stricter matching
+      const potentialEvents = await this.searchEvents(userId, intent);
+      
+      if (potentialEvents.length === 0) {
+        return {
+          success: true,
+          events: []
+        };
+      }
+
+      // Use LLM to find the best matching event for deletion
+      const eventList = potentialEvents.map((event, index) => {
+        const startDate = event.startDatetime ? new Date(event.startDatetime) : null;
+        const dateStr = startDate ? startDate.toLocaleDateString() : 'Unknown date';
+        const timeStr = startDate && !event.isAllDay ? startDate.toLocaleTimeString() : '';
+        
+        return `${index + 1}. "${event.title}" on ${dateStr}${timeStr ? ' at ' + timeStr : ''}${event.location ? ' at ' + event.location : ''}`;
+      }).join('\n');
+
+      const prompt = `
+User wants to delete an event with this request: "${userMessage}"
+
+Available events:
+${eventList}
+
+Which event(s) should be deleted? Respond with JSON:
+{
+  "eventNumbers": [1, 2, 3], // Array of event numbers that match the deletion request
+  "confidence": "high" or "medium" or "low" // How confident you are in the match
+}
+
+Only include events that clearly match the user's deletion request. If unsure, use lower confidence.
+`;
+
+      const response = await this.llm.generate(prompt, { temperature: 0.1 });
+      
+      // Extract JSON from response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in LLM response');
+      }
+      
+      const matchResult = JSON.parse(jsonMatch[0]);
+      
+      if (!matchResult.eventNumbers || matchResult.eventNumbers.length === 0) {
+        return {
+          success: true,
+          events: []
+        };
+      }
+
+      // Return matching events
+      const matchedEvents = matchResult.eventNumbers
+        .filter(num => num >= 1 && num <= potentialEvents.length)
+        .map(num => potentialEvents[num - 1]);
+
+      return {
+        success: true,
+        events: matchedEvents,
+        confidence: matchResult.confidence
+      };
+    } catch (error) {
+      console.error('Error finding events to delete:', error);
+      return {
+        success: false,
+        message: "I had trouble searching for events to delete. Please try again."
+      };
+    }
+  }
+
+  async deleteGoogleCalendarEvent(userId, event) {
+    try {
+      // Get user's access token
+      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (user.length === 0) {
+        return { success: false, message: "User not found" };
+      }
+
+      const accessToken = user[0].accessToken;
+      if (!accessToken) {
+        return { success: false, message: "No Google access token available. Please re-authenticate." };
+      }
+
+      // Call Google Calendar API to delete the event
+      const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${event.googleEventId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          // Event already deleted or doesn't exist
+          console.log('Event not found in Google Calendar, proceeding with local deletion');
+          return { success: true };
+        }
+        
+        const errorText = await response.text();
+        console.error('Google Calendar API delete error:', errorText);
+        return { success: false, message: "Failed to delete event from Google Calendar" };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting Google Calendar event:', error);
+      return { success: false, message: "Failed to delete event from Google Calendar" };
+    }
+  }
+
+  async removeEventFromDatabase(eventId) {
+    try {
+      await db.delete(calendarEvents).where(eq(calendarEvents.id, eventId));
+      console.log('✅ Event removed from database');
+    } catch (error) {
+      console.error('Error removing event from database:', error);
+      // Don't throw error - event was deleted from Google Calendar successfully
+    }
   }
 }
