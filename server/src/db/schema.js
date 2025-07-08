@@ -6,6 +6,7 @@ export const users = pgTable('users', {
   googleId: varchar('google_id', { length: 255 }).unique().notNull(),
   email: varchar('email', { length: 255 }).notNull(),
   name: varchar('name', { length: 255 }),
+  accessToken: text('access_token'), // Google OAuth access token for API calls
   createdAt: timestamp('created_at').defaultNow(),
 });
 

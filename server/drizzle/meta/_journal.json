@@ -15,6 +15,13 @@
       "when": 1751876626199,
       "tag": "0001_messy_purple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1751972434116,
+      "tag": "0002_small_lorna_dane",
+      "breakpoints": true
     }
   ]
 }
