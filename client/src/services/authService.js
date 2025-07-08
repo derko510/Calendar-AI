@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://server-b3k7nkn9g-derricks-projects-0ffc821f.vercel.app';
+// FORCE DEV BACKEND - REMOVE AFTER TESTING
+const API_BASE_URL = 'https://server-b3k7nkn9g-derricks-projects-0ffc821f.vercel.app';
 
 class AuthService {
   constructor() {
