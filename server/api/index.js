@@ -230,7 +230,7 @@ app.post('/api/real-calendar/sync-frontend-data', async (req, res) => {
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   try {
-    const { events, userInfo } = req.body;
+    const { events, userInfo, accessToken } = req.body;
     
     if (!events || !userInfo) {
       return res.status(400).json({ error: 'Events and user info are required' });
@@ -259,10 +259,21 @@ app.post('/api/real-calendar/sync-frontend-data', async (req, res) => {
         .values({
           googleId: userInfo.id || `frontend-${Date.now()}`,
           email: userInfo.email,
-          name: userInfo.name || 'Unknown User'
+          name: userInfo.name || 'Unknown User',
+          accessToken: accessToken || null
         })
         .returning();
       user = newUser;
+    } else {
+      // Update existing user with access token
+      if (accessToken) {
+        console.log('🔄 Updating user access token');
+        await db
+          .update(users)
+          .set({ accessToken: accessToken })
+          .where(eq(users.id, user[0].id));
+        user[0].accessToken = accessToken; // Update local copy
+      }
     }
     
     const userId = user[0].id;

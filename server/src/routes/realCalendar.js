@@ -122,7 +122,7 @@ router.post('/sync-frontend-data', async (req, res) => {
 // Chat with real calendar data
 router.post('/chat', async (req, res) => {
   try {
-    const { message, userEmail } = req.body;
+    const { message, userEmail, accessToken } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
@@ -141,6 +141,14 @@ router.post('/chat', async (req, res) => {
     
     if (user.length === 0) {
       return res.status(404).json({ error: 'User not found. Please sync your calendar first.' });
+    }
+    
+    // Update user's access token if provided
+    if (accessToken && user[0].accessToken !== accessToken) {
+      await db
+        .update(users)
+        .set({ accessToken: accessToken })
+        .where(eq(users.id, user[0].id));
     }
     
     const userId = user[0].id;
