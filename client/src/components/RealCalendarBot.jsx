@@ -51,6 +51,10 @@ const RealCalendarBot = ({ userCredential, events }) => {
         id: userCredential.id || 'unknown'
       };
 
+      // Get access token from localStorage
+      const googleAuth = JSON.parse(localStorage.getItem('googleAuth') || '{}');
+      const accessToken = googleAuth.accessToken;
+
       console.log(`🔄 Syncing ${events.length} real calendar events...`);
       
       const response = await fetch(`${API_BASE_URL}/api/real-calendar/sync-frontend-data`, {
@@ -60,7 +64,8 @@ const RealCalendarBot = ({ userCredential, events }) => {
         },
         body: JSON.stringify({
           events: events,
-          userInfo: userInfo
+          userInfo: userInfo,
+          accessToken: accessToken
         })
       });
 
@@ -122,6 +127,11 @@ Try asking:
     try {
       const API_BASE_URL = 'https://server-git-dev-derricks-projects-0ffc821f.vercel.app';
       console.log('🔗 API_BASE_URL:', API_BASE_URL);
+      
+      // Get access token from localStorage for chat requests too
+      const googleAuth = JSON.parse(localStorage.getItem('googleAuth') || '{}');
+      const accessToken = googleAuth.accessToken;
+      
       const response = await fetch(`${API_BASE_URL}/api/real-calendar/chat`, {
         method: 'POST',
         headers: {
@@ -129,7 +139,8 @@ Try asking:
         },
         body: JSON.stringify({
           message: userMessage.content,
-          userEmail: userCredential.email || 'user@example.com'
+          userEmail: userCredential.email || 'user@example.com',
+          accessToken: accessToken
         })
       });
 
