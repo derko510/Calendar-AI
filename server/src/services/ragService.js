@@ -493,10 +493,23 @@ Only include events that clearly match the user's deletion request. If unsure, u
       // Extract JSON from response
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error('No JSON found in LLM response');
+        console.error('No JSON found in LLM response for event deletion');
+        return {
+          success: true,
+          events: [] // Fallback to no matches found
+        };
       }
       
-      const matchResult = JSON.parse(jsonMatch[0]);
+      let matchResult;
+      try {
+        matchResult = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error('Error parsing JSON from LLM response for event deletion:', parseError);
+        return {
+          success: true,
+          events: [] // Fallback to no matches found
+        };
+      }
       
       if (!matchResult.eventNumbers || matchResult.eventNumbers.length === 0) {
         return {

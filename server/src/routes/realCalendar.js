@@ -162,6 +162,7 @@ router.post('/chat', async (req, res) => {
     // Use the existing RAG service
     const result = await ragService.processQuery(userId, message);
     
+    // The RAG service returns a structured response, so send it directly
     res.json(result);
     
   } catch (error) {
