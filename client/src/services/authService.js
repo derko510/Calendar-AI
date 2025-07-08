@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://server-nu-eight-16.vercel.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://server-git-dev-derricks-projects-0ffc821f.vercel.app';
 
 class AuthService {
   constructor() {
