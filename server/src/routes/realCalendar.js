@@ -5,8 +5,21 @@ import { eq } from 'drizzle-orm';
 
 const router = express.Router();
 
+// Handle preflight OPTIONS requests
+router.options('/sync-frontend-data', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
 // Sync real calendar data from frontend (no Google auth needed on backend)
 router.post('/sync-frontend-data', async (req, res) => {
+  // Ensure CORS headers are set even on errors
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
   try {
     const { events, userInfo } = req.body;
     
