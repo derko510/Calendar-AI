@@ -5,15 +5,20 @@ import { eq } from 'drizzle-orm';
 
 const router = express.Router();
 
+// NOTE: /sync-frontend-data is handled directly in api/index.js for serverless deployment
+// This route is disabled to avoid conflicts
+
 // Handle preflight OPTIONS requests
-router.options('/sync-frontend-data', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.status(200).end();
-});
+// router.options('/sync-frontend-data', (req, res) => {
+//   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+//   res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+//   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+//   res.status(200).end();
+// });
 
 // Sync real calendar data from frontend (no Google auth needed on backend)
+// DISABLED: This route is handled directly in api/index.js for serverless deployment
+/*
 router.post('/sync-frontend-data', async (req, res) => {
   // Ensure CORS headers are set even on errors
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -112,6 +117,7 @@ router.post('/sync-frontend-data', async (req, res) => {
     });
   }
 });
+*/
 
 // Chat with real calendar data
 router.post('/chat', async (req, res) => {
