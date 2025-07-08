@@ -62,7 +62,7 @@ app.use(cors({
       console.log('❌ Origin blocked:', origin);
       console.log('❌ Exact match check:', allowedOrigins.map(url => `"${url}" === "${origin}" ? ${url === origin}`));
       // For dev branch, be more permissive
-      if (origin && (origin.includes('client-git-dev-derricks-projects') || origin.includes('localhost'))) {
+      if (origin && (origin.includes('client-git-dev-derricks-projects') || origin.includes('derricks-projects-0ffc821f') || origin.includes('localhost'))) {
         console.log('🟡 Dev override: allowing origin');
         return callback(null, true);
       }
@@ -204,7 +204,7 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    version: '1.1',
+    version: '1.2', // Updated for event creation feature
     env: envCheck
   });
 });
