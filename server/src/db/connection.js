@@ -7,6 +7,9 @@ const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 1, // Limit connections for serverless
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 
 export const db = drizzle(pool, { schema });
