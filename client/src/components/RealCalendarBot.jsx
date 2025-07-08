@@ -146,13 +146,15 @@ Try asking:
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (response.ok) {
+        // Handle both success and structured failure responses from backend
         const botMessage = {
           id: Date.now() + 1,
           type: 'bot',
           content: data.message || 'I received your message but had trouble processing it.',
           timestamp: new Date(),
-          events: data.events || []
+          events: data.events || [],
+          isError: !data.success && !data.message // Only show as error if no helpful message provided
         };
         setMessages(prev => [...prev, botMessage]);
       } else {
