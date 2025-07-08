@@ -207,8 +207,21 @@ app.get('/api/auth/test-auth', (req, res) => {
   res.json({ message: 'Auth route works', timestamp: new Date().toISOString() });
 });
 
+// Handle OPTIONS preflight for sync endpoint
+app.options('/api/real-calendar/sync-frontend-data', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
 // Simple calendar sync test
 app.post('/api/real-calendar/sync-frontend-data', async (req, res) => {
+  // Set CORS headers first
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
   try {
     const { events, userInfo } = req.body;
     
@@ -426,6 +439,24 @@ app.get('/api/env-test', (req, res) => {
       hasSessionSecret: !!process.env.SESSION_SECRET,
       nodeEnv: process.env.NODE_ENV
     }
+  });
+});
+
+// Test CORS endpoint
+app.all('/api/cors-test', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  res.json({
+    success: true,
+    message: 'CORS test successful',
+    method: req.method,
+    origin: req.headers.origin
   });
 });
 
