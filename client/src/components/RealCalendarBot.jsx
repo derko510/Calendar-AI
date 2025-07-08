@@ -41,9 +41,7 @@ const RealCalendarBot = ({ userCredential, events }) => {
 
     setIsSyncing(true);
     try {
-      // FORCE DEV BACKEND - REMOVE AFTER TESTING
-      const API_BASE_URL = 'https://server-b3k7nkn9g-derricks-projects-0ffc821f.vercel.app';
-      console.log('🔗 FORCED API_BASE_URL:', API_BASE_URL);
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://server-b3k7nkn9g-derricks-projects-0ffc821f.vercel.app';
       
       // Extract user info from credential
       const userInfo = {
@@ -121,9 +119,7 @@ Try asking:
     setIsLoading(true);
 
     try {
-      // FORCE DEV BACKEND - REMOVE AFTER TESTING
-      const API_BASE_URL = 'https://server-b3k7nkn9g-derricks-projects-0ffc821f.vercel.app';
-      console.log('🔗 FORCED API_BASE_URL:', API_BASE_URL);
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://server-b3k7nkn9g-derricks-projects-0ffc821f.vercel.app';
       const response = await fetch(`${API_BASE_URL}/api/real-calendar/chat`, {
         method: 'POST',
         headers: {
