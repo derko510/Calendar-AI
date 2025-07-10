@@ -5,7 +5,15 @@ import googleCalendarService from '../services/googleCalendar';
 const RealCalendarBot = ({ userCredential, events, onEventCreated, onEventUpdated, onEventDeleted, onRefreshEvents }) => {
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem('calendarBotMessages');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      const messages = JSON.parse(saved);
+      // Convert timestamp strings back to Date objects
+      return messages.map(msg => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+    }
+    return [];
   });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -18,7 +26,22 @@ const RealCalendarBot = ({ userCredential, events, onEventCreated, onEventUpdate
   });
   const [conversationContext, setConversationContext] = useState(() => {
     const saved = localStorage.getItem('calendarBotContext');
-    return saved ? JSON.parse(saved) : {
+    if (saved) {
+      const context = JSON.parse(saved);
+      // Convert any timestamp strings back to Date objects in recent events
+      if (context.recentEvents) {
+        context.recentEvents = context.recentEvents.map(event => ({
+          ...event,
+          timestamp: event.timestamp ? new Date(event.timestamp) : event.timestamp
+        }));
+      }
+      // Handle pendingMassDeletion timestamp if it exists
+      if (context.pendingMassDeletion?.timestamp) {
+        context.pendingMassDeletion.timestamp = new Date(context.pendingMassDeletion.timestamp);
+      }
+      return context;
+    }
+    return {
       recentEvents: [], // Track recently created/modified events
       lastOperation: null, // Track last operation (create, delete, etc.)
       conversationHistory: [] // Track recent message pairs for context
