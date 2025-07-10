@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
 import MonthView from './MonthView';
@@ -8,13 +8,21 @@ import DayView from './DayView';
 const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventClick, onSignOut }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [view, setView] = useState('month'); // month, week, day
+  const [view, setView] = useState(() => {
+    // Load saved view from localStorage, default to 'month'
+    return localStorage.getItem('calendarView') || 'month';
+  });
   const [tooltip, setTooltip] = useState({
     visible: false,
     x: 0,
     y: 0,
     content: ''
   });
+
+  // Save view to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('calendarView', view);
+  }, [view]);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
