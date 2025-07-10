@@ -224,7 +224,7 @@ Key rules:
         query = query.orderBy(desc(calendarEvents.startDatetime));
       }
 
-      const events = await query.limit(20);
+      const events = await query.limit(100); // Increased from 20 to allow bulk operations
       return events;
     } catch (error) {
       console.error('Error searching events:', error);
@@ -345,7 +345,7 @@ Be specific about dates and times when possible.
       );
 
       // Only ask for clarification if we have many events AND user didn't clearly indicate bulk deletion
-      if (matchingEvents.events.length > 5 && !wantsToDeleteAll && !mentionsDeletion) {
+      if (matchingEvents.events.length > 10 && !wantsToDeleteAll && !mentionsDeletion) {
         return {
           success: false,
           message: `I found ${matchingEvents.events.length} events that match your request. Please be more specific about which event to delete, or say "delete all" to remove all matching events.`,
