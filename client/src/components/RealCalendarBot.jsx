@@ -16,6 +16,11 @@ const RealCalendarBot = ({ userCredential, events }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState('Not synced');
   const [isSynced, setIsSynced] = useState(false);
+  const [conversationContext, setConversationContext] = useState({
+    recentEvents: [], // Track recently created/modified events
+    lastOperation: null, // Track last operation (create, delete, etc.)
+    conversationHistory: [] // Track recent message pairs for context
+  });
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -140,7 +145,8 @@ Try asking:
         body: JSON.stringify({
           message: userMessage.content,
           userEmail: userCredential.email || 'user@example.com',
-          accessToken: accessToken
+          accessToken: accessToken,
+          conversationContext: conversationContext
         })
       });
 
@@ -157,6 +163,14 @@ Try asking:
           isError: !data.success && !data.message // Only show as error if no helpful message provided
         };
         setMessages(prev => [...prev, botMessage]);
+
+        // Update conversation context based on backend response
+        if (data.conversationUpdate) {
+          setConversationContext(prev => ({
+            ...prev,
+            ...data.conversationUpdate
+          }));
+        }
       } else {
         throw new Error(data.message || 'Failed to get response');
       }

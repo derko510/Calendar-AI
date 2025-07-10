@@ -298,41 +298,68 @@ Be specific about dates and times when possible.
         };
       }
 
-      if (matchingEvents.events.length > 1) {
+      // Check if user wants to delete all matching events
+      const deleteAllKeywords = ['delete all', 'remove all', 'cancel all', 'delete them all', 'remove them all'];
+      const wantsToDeleteAll = deleteAllKeywords.some(keyword => 
+        userMessage.toLowerCase().includes(keyword.toLowerCase())
+      );
+
+      if (matchingEvents.events.length > 1 && !wantsToDeleteAll) {
         return {
           success: false,
-          message: `I found ${matchingEvents.events.length} events that match your request. Please be more specific about which event to delete.`,
+          message: `I found ${matchingEvents.events.length} events that match your request. Please be more specific about which event to delete, or say "delete all" to remove all matching events.`,
           events: matchingEvents.events.slice(0, 3) // Show first 3 matches
         };
       }
 
-      // Step 2: Delete the single matching event
-      const eventToDelete = matchingEvents.events[0];
-      const deleteResult = await this.deleteGoogleCalendarEvent(userId, eventToDelete);
-      
-      if (!deleteResult.success) {
-        return deleteResult;
+      // Step 2: Delete the event(s)
+      const eventsToDelete = matchingEvents.events;
+      const deleteResults = [];
+      const deletedEvents = [];
+
+      for (const eventToDelete of eventsToDelete) {
+        const deleteResult = await this.deleteGoogleCalendarEvent(userId, eventToDelete);
+        
+        if (deleteResult.success) {
+          // Remove from our database
+          await this.removeEventFromDatabase(eventToDelete.id);
+          deletedEvents.push(eventToDelete);
+        }
+        
+        deleteResults.push({
+          event: eventToDelete,
+          success: deleteResult.success,
+          message: deleteResult.message
+        });
       }
 
-      // Step 3: Remove from our database
-      await this.removeEventFromDatabase(eventToDelete.id);
-
-      // Step 4: Update conversation context
-      const eventContext = {
+      // Step 3: Update conversation context
+      const eventContexts = deletedEvents.map(event => ({
         operation: 'delete',
-        title: eventToDelete.title,
-        date: new Date(eventToDelete.startDatetime).toLocaleDateString(),
-        time: eventToDelete.isAllDay ? 'all day' : new Date(eventToDelete.startDatetime).toLocaleTimeString(),
-        googleEventId: eventToDelete.googleEventId,
+        title: event.title,
+        date: new Date(event.startDatetime).toLocaleDateString(),
+        time: event.isAllDay ? 'all day' : new Date(event.startDatetime).toLocaleTimeString(),
+        googleEventId: event.googleEventId,
         timestamp: new Date()
-      };
+      }));
+
+      // Generate appropriate success message
+      let successMessage;
+      if (deletedEvents.length === 1) {
+        successMessage = `✅ Deleted event "${deletedEvents[0].title}" on ${new Date(deletedEvents[0].startDatetime).toLocaleDateString()}`;
+      } else if (deletedEvents.length === eventsToDelete.length) {
+        successMessage = `✅ Successfully deleted all ${deletedEvents.length} matching events`;
+      } else {
+        successMessage = `✅ Deleted ${deletedEvents.length} of ${eventsToDelete.length} events. Some events may have already been deleted.`;
+      }
 
       return {
         success: true,
-        message: `✅ Deleted event "${eventToDelete.title}" on ${new Date(eventToDelete.startDatetime).toLocaleDateString()}`,
-        deletedEvent: eventToDelete,
+        message: successMessage,
+        deletedEvents: deletedEvents,
+        deleteResults: deleteResults,
         conversationUpdate: {
-          recentEvents: [eventContext, ...(conversationContext.recentEvents || [])].slice(0, 5), // Keep last 5 events
+          recentEvents: [...eventContexts, ...(conversationContext.recentEvents || [])].slice(0, 5), // Keep last 5 events
           lastOperation: 'delete'
         }
       };
@@ -556,7 +583,11 @@ Which event(s) should be deleted? Respond with JSON:
   "confidence": "high" or "medium" or "low" // How confident you are in the match
 }
 
-Only include events that clearly match the user's deletion request. If unsure, use lower confidence.
+Special instructions:
+- If user says "delete all", "remove all", "cancel all", or similar, and multiple events have the same title, return ALL matching events
+- If user mentions specific event title like "🎯 Focus time", return ALL events with that exact title
+- If user says "delete all events named X", return ALL events with title X
+- Only include events that clearly match the user's deletion request. If unsure, use lower confidence.
 `;
 
       const response = await this.llm.generate(prompt, { temperature: 0.1 });
