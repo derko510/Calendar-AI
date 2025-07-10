@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import bodyParser from 'body-parser';
 import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
+import { track } from '@vercel/analytics/server';
 import { specs } from '../src/config/swagger.js';
 import 'dotenv/config';
 
@@ -92,6 +93,19 @@ app.use(session({
   },
   name: 'calendar-ai-session', // Custom session name
 }));
+
+// Analytics tracking middleware
+app.use((req, res, next) => {
+  // Track API usage with Vercel Analytics
+  if (req.path.startsWith('/api/')) {
+    track('api_request', {
+      endpoint: req.path,
+      method: req.method,
+      origin: req.headers.origin || 'unknown'
+    });
+  }
+  next();
+});
 
 // Session debugging middleware
 app.use((req, res, next) => {
@@ -238,6 +252,13 @@ app.post('/api/real-calendar/sync-frontend-data', async (req, res) => {
     
     console.log(`🔄 Syncing ${events.length} events from frontend...`);
     console.log('📧 User info:', userInfo);
+    
+    // Track calendar sync event
+    track('calendar_sync', {
+      eventCount: events.length,
+      userEmail: userInfo.email,
+      hasAccessToken: !!accessToken
+    });
     
     // Import database modules
     const { db } = await import('../src/db/connection.js');

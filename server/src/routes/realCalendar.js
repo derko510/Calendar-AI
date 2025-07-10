@@ -1,4 +1,5 @@
 import express from 'express';
+import { track } from '@vercel/analytics/server';
 import { db } from '../db/connection.js';
 import { calendarEvents, users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -131,6 +132,14 @@ router.post('/chat', async (req, res) => {
     if (!userEmail) {
       return res.status(400).json({ error: 'User email is required' });
     }
+    
+    // Track chat interaction
+    track('calendar_chat', {
+      userEmail: userEmail,
+      messageLength: message.length,
+      hasAccessToken: !!accessToken,
+      hasContext: !!conversationContext
+    });
     
     // Get user by email
     const user = await db
