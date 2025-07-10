@@ -17,5 +17,11 @@
       "main": true,
       "dev": true
     }
+  },
+  "env": {
+    "NODE_ENV": "production",
+    "LLM_PROVIDER": "groq",
+    "LLM_MODEL": "llama-3.1-8b-instant",
+    "PORT": "3001"
   }
 }
