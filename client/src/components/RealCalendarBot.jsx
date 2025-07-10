@@ -21,6 +21,7 @@ const RealCalendarBot = ({ userCredential, events, onEventCreated, onEventUpdate
     lastOperation: null, // Track last operation (create, delete, etc.)
     conversationHistory: [] // Track recent message pairs for context
   });
+  const [isUpdatingCalendar, setIsUpdatingCalendar] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -174,23 +175,43 @@ Try asking:
 
         // Trigger real-time calendar updates based on successful operations
         if (data.success) {
-          // Handle event creation
+          // Handle event creation - refresh from Google to get accurate data
           if (data.event && data.conversationUpdate?.lastOperation === 'create') {
-            console.log('🔄 Event created, refreshing calendar...');
-            onRefreshEvents?.();
+            console.log('🔄 Event created, refreshing calendar in background...');
+            setIsUpdatingCalendar(true);
+            // Use setTimeout to refresh after a brief delay to ensure Google Calendar is updated
+            setTimeout(() => {
+              onRefreshEvents?.();
+              setIsUpdatingCalendar(false);
+            }, 1000);
           }
           
-          // Handle event deletion
+          // Handle event deletion - immediate update for better UX
           if (data.deletedEvents && data.conversationUpdate?.lastOperation === 'delete') {
-            console.log('🔄 Event(s) deleted, updating calendar...');
+            console.log(`🔄 ${data.deletedEvents.length} event(s) deleted, updating calendar...`);
             const deletedIds = data.deletedEvents.map(event => event.googleEventId);
             onEventDeleted?.(deletedIds);
+            
+            // Also refresh from Google after a delay to ensure consistency
+            setIsUpdatingCalendar(true);
+            setTimeout(() => {
+              console.log('🔄 Background refresh to ensure consistency...');
+              onRefreshEvents?.();
+              setIsUpdatingCalendar(false);
+            }, 2000);
           }
           
           // Handle single event deletion (fallback for older responses)
           if (data.deletedEvent && data.conversationUpdate?.lastOperation === 'delete') {
             console.log('🔄 Event deleted, updating calendar...');
             onEventDeleted?.(data.deletedEvent.googleEventId);
+            
+            // Background refresh for consistency
+            setIsUpdatingCalendar(true);
+            setTimeout(() => {
+              onRefreshEvents?.();
+              setIsUpdatingCalendar(false);
+            }, 2000);
           }
         }
       } else {
@@ -228,8 +249,14 @@ Try asking:
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isSynced ? 'bg-green-300' : 'bg-yellow-300'}`}></div>
-            <span className="text-xs">{isSynced ? 'Synced' : 'Syncing...'}</span>
+            <div className={`w-2 h-2 rounded-full ${
+              isUpdatingCalendar ? 'bg-blue-400 animate-pulse' : 
+              isSynced ? 'bg-green-300' : 'bg-yellow-300'
+            }`}></div>
+            <span className="text-xs">
+              {isUpdatingCalendar ? 'Updating...' : 
+               isSynced ? 'Synced' : 'Syncing...'}
+            </span>
           </div>
         </div>
       </div>
@@ -237,23 +264,14 @@ Try asking:
       {/* Sync Status */}
       <div className="px-4 py-2 bg-gray-50 border-b flex items-center justify-between">
         <span className="text-sm text-gray-600">{syncStatus}</span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSync}
-            disabled={isSyncing}
-            className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Syncing...' : 'Re-sync Backend'}
-          </button>
-          <button
-            onClick={onRefreshEvents}
-            className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-          >
-            <RefreshCw className="w-3 h-3" />
-            Refresh Calendar
-          </button>
-        </div>
+        <button
+          onClick={handleSync}
+          disabled={isSyncing}
+          className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+          {isSyncing ? 'Syncing...' : 'Re-sync Backend'}
+        </button>
       </div>
 
       {/* Messages */}
