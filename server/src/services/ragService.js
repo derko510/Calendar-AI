@@ -18,6 +18,45 @@ export class RAGService {
 
   async processQuery(userId, userMessage, conversationContext = {}) {
     try {
+      // Check if user is responding to a confirmation prompt
+      const confirmationWords = ['yes', 'confirm', 'proceed', 'delete', 'ok', 'sure'];
+      const denyWords = ['no', 'cancel', 'stop', 'abort', 'nevermind'];
+      
+      const isConfirming = confirmationWords.some(word => 
+        userMessage.toLowerCase().trim() === word.toLowerCase()
+      );
+      const isDenying = denyWords.some(word => 
+        userMessage.toLowerCase().trim() === word.toLowerCase()
+      );
+
+      // Handle confirmation responses for pending mass deletion
+      if (conversationContext.pendingMassDeletion && (isConfirming || isDenying)) {
+        if (isDenying) {
+          return {
+            success: false,
+            message: "Operation cancelled. Your calendar events are safe.",
+            conversationUpdate: {
+              recentEvents: conversationContext.recentEvents || [],
+              lastOperation: 'cancelled',
+              pendingMassDeletion: null
+            }
+          };
+        }
+
+        if (isConfirming) {
+          // Proceed with the mass deletion
+          const deletionResult = await this.executeMassDeletion(userId, conversationContext.pendingMassDeletion);
+          return {
+            ...deletionResult,
+            conversationUpdate: {
+              recentEvents: deletionResult.conversationUpdate?.recentEvents || [],
+              lastOperation: 'delete',
+              pendingMassDeletion: null
+            }
+          };
+        }
+      }
+
       // Step 1: Resolve contextual references in the message
       const resolvedMessage = await this.resolveContextualReferences(userMessage, conversationContext);
       
@@ -359,13 +398,22 @@ Be specific about dates and times when possible.
           };
         }
 
-        // If not confirming, ask for confirmation
+        // If not confirming, ask for confirmation and store pending operation
         if (!isConfirming) {
           return {
             success: false,
             message: `⚠️ You're about to delete ALL ${matchingEvents.events.length} events from your calendar. This cannot be undone.\n\nAre you sure you want to proceed? Reply with "yes" to confirm or "no" to cancel.`,
             requiresConfirmation: true,
-            eventCount: matchingEvents.events.length
+            eventCount: matchingEvents.events.length,
+            conversationUpdate: {
+              recentEvents: conversationContext.recentEvents || [],
+              lastOperation: 'confirmation_pending',
+              pendingMassDeletion: {
+                events: matchingEvents.events,
+                originalMessage: userMessage,
+                timestamp: new Date()
+              }
+            }
           };
         }
       }
@@ -783,6 +831,64 @@ BE AGGRESSIVE: When in doubt about quantity, return ALL matching events rather t
     } catch (error) {
       console.error('Error removing event from database:', error);
       // Don't throw error - event was deleted from Google Calendar successfully
+    }
+  }
+
+  async executeMassDeletion(userId, pendingDeletion) {
+    try {
+      const eventsToDelete = pendingDeletion.events;
+      const deleteResults = [];
+      const deletedEvents = [];
+
+      console.log(`🗑️ Executing mass deletion of ${eventsToDelete.length} events...`);
+
+      for (const eventToDelete of eventsToDelete) {
+        const deleteResult = await this.deleteGoogleCalendarEvent(userId, eventToDelete);
+        
+        if (deleteResult.success) {
+          // Remove from our database
+          await this.removeEventFromDatabase(eventToDelete.id);
+          deletedEvents.push(eventToDelete);
+        }
+        
+        deleteResults.push({
+          event: eventToDelete,
+          success: deleteResult.success,
+          message: deleteResult.message
+        });
+      }
+
+      // Generate success message
+      const successMessage = deletedEvents.length === eventsToDelete.length
+        ? `✅ Successfully deleted all ${deletedEvents.length} events from your calendar`
+        : `✅ Deleted ${deletedEvents.length} of ${eventsToDelete.length} events. Some events may have already been deleted.`;
+
+      // Create conversation context for deleted events
+      const eventContexts = deletedEvents.map(event => ({
+        operation: 'delete',
+        title: event.title,
+        date: new Date(event.startDatetime).toLocaleDateString(),
+        time: event.isAllDay ? 'all day' : new Date(event.startDatetime).toLocaleTimeString(),
+        googleEventId: event.googleEventId,
+        timestamp: new Date()
+      }));
+
+      return {
+        success: true,
+        message: successMessage,
+        deletedEvents: deletedEvents,
+        deleteResults: deleteResults,
+        conversationUpdate: {
+          recentEvents: [...eventContexts].slice(0, 5), // Keep last 5 events
+          lastOperation: 'delete'
+        }
+      };
+    } catch (error) {
+      console.error('Error executing mass deletion:', error);
+      return {
+        success: false,
+        message: "Sorry, I encountered an error while deleting your events. Please try again."
+      };
     }
   }
 }
