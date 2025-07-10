@@ -96,6 +96,31 @@ const Dashboard = ({ userCredential }) => {
     }
   };
 
+  // Real-time update callbacks for chatbot operations
+  const refreshEvents = async () => {
+    console.log('🔄 Refreshing calendar events...');
+    await initializeCalendar();
+  };
+
+  const handleEventCreated = (newEvent) => {
+    console.log('✅ Event created, updating calendar:', newEvent.title);
+    setEvents(prev => [...prev, newEvent]);
+  };
+
+  const handleEventUpdated = (updatedEvent) => {
+    console.log('✅ Event updated, updating calendar:', updatedEvent.title);
+    setEvents(prev => prev.map(event => 
+      event.id === updatedEvent.id ? updatedEvent : event
+    ));
+  };
+
+  const handleEventDeleted = (deletedEventIds) => {
+    console.log('✅ Event(s) deleted, updating calendar:', deletedEventIds);
+    // Handle both single ID and array of IDs
+    const idsToDelete = Array.isArray(deletedEventIds) ? deletedEventIds : [deletedEventIds];
+    setEvents(prev => prev.filter(event => !idsToDelete.includes(event.id)));
+  };
+
   // Removed sync function for simple mode
 
 
@@ -171,7 +196,14 @@ const Dashboard = ({ userCredential }) => {
               ) : backendAuth ? (
                 <RAGChatBot backendAuth={backendAuth} />
               ) : (
-                <RealCalendarBot userCredential={userCredential} events={events} />
+                <RealCalendarBot 
+                  userCredential={userCredential} 
+                  events={events}
+                  onEventCreated={handleEventCreated}
+                  onEventUpdated={handleEventUpdated}
+                  onEventDeleted={handleEventDeleted}
+                  onRefreshEvents={refreshEvents}
+                />
               )}
             </div>
           </div>

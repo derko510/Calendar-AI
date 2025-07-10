@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader2, Calendar, RefreshCw } from 'lucide-react';
 import googleCalendarService from '../services/googleCalendar';
 
-const RealCalendarBot = ({ userCredential, events }) => {
+const RealCalendarBot = ({ userCredential, events, onEventCreated, onEventUpdated, onEventDeleted, onRefreshEvents }) => {
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -171,6 +171,28 @@ Try asking:
             ...data.conversationUpdate
           }));
         }
+
+        // Trigger real-time calendar updates based on successful operations
+        if (data.success) {
+          // Handle event creation
+          if (data.event && data.conversationUpdate?.lastOperation === 'create') {
+            console.log('🔄 Event created, refreshing calendar...');
+            onRefreshEvents?.();
+          }
+          
+          // Handle event deletion
+          if (data.deletedEvents && data.conversationUpdate?.lastOperation === 'delete') {
+            console.log('🔄 Event(s) deleted, updating calendar...');
+            const deletedIds = data.deletedEvents.map(event => event.googleEventId);
+            onEventDeleted?.(deletedIds);
+          }
+          
+          // Handle single event deletion (fallback for older responses)
+          if (data.deletedEvent && data.conversationUpdate?.lastOperation === 'delete') {
+            console.log('🔄 Event deleted, updating calendar...');
+            onEventDeleted?.(data.deletedEvent.googleEventId);
+          }
+        }
       } else {
         throw new Error(data.message || 'Failed to get response');
       }
@@ -215,14 +237,23 @@ Try asking:
       {/* Sync Status */}
       <div className="px-4 py-2 bg-gray-50 border-b flex items-center justify-between">
         <span className="text-sm text-gray-600">{syncStatus}</span>
-        <button
-          onClick={handleSync}
-          disabled={isSyncing}
-          className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-          {isSyncing ? 'Syncing...' : 'Re-sync Calendar'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Syncing...' : 'Re-sync Backend'}
+          </button>
+          <button
+            onClick={onRefreshEvents}
+            className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Refresh Calendar
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
