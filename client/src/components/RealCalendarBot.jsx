@@ -3,23 +3,26 @@ import { Send, Bot, User, Loader2, Calendar, RefreshCw } from 'lucide-react';
 import googleCalendarService from '../services/googleCalendar';
 
 const RealCalendarBot = ({ userCredential, events, onEventCreated, onEventUpdated, onEventDeleted, onRefreshEvents }) => {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: 'bot',
-      content: "🗓️ Hi! I'm your Calendar AI. I can access your actual Google Calendar data. Let me sync your events first...",
-      timestamp: new Date()
-    }
-  ]);
+  const [messages, setMessages] = useState(() => {
+    const saved = localStorage.getItem('calendarBotMessages');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('Not synced');
-  const [isSynced, setIsSynced] = useState(false);
-  const [conversationContext, setConversationContext] = useState({
-    recentEvents: [], // Track recently created/modified events
-    lastOperation: null, // Track last operation (create, delete, etc.)
-    conversationHistory: [] // Track recent message pairs for context
+  const [syncStatus, setSyncStatus] = useState(() => {
+    return localStorage.getItem('calendarBotSyncStatus') || 'Not synced';
+  });
+  const [isSynced, setIsSynced] = useState(() => {
+    return localStorage.getItem('calendarBotSynced') === 'true';
+  });
+  const [conversationContext, setConversationContext] = useState(() => {
+    const saved = localStorage.getItem('calendarBotContext');
+    return saved ? JSON.parse(saved) : {
+      recentEvents: [], // Track recently created/modified events
+      lastOperation: null, // Track last operation (create, delete, etc.)
+      conversationHistory: [] // Track recent message pairs for context
+    };
   });
   const messagesEndRef = useRef(null);
 
@@ -30,6 +33,23 @@ const RealCalendarBot = ({ userCredential, events, onEventCreated, onEventUpdate
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Save states to localStorage
+  useEffect(() => {
+    localStorage.setItem('calendarBotMessages', JSON.stringify(messages));
+  }, [messages]);
+
+  useEffect(() => {
+    localStorage.setItem('calendarBotSyncStatus', syncStatus);
+  }, [syncStatus]);
+
+  useEffect(() => {
+    localStorage.setItem('calendarBotSynced', isSynced.toString());
+  }, [isSynced]);
+
+  useEffect(() => {
+    localStorage.setItem('calendarBotContext', JSON.stringify(conversationContext));
+  }, [conversationContext]);
 
   useEffect(() => {
     // Auto-sync when component loads
@@ -76,7 +96,7 @@ const RealCalendarBot = ({ userCredential, events, onEventCreated, onEventUpdate
 
       if (response.ok) {
         const data = await response.json();
-        setSyncStatus(`✅ Synced ${data.eventCount} real events`);
+        setSyncStatus(`✅ Synced ${data.eventCount} events`);
         setIsSynced(true);
         
         const syncMessage = {
@@ -249,16 +269,8 @@ Try asking:
       </div>
 
       {/* Sync Status */}
-      <div className="px-4 py-2 bg-gray-50 border-b flex items-center justify-between">
+      <div className="px-4 py-2 bg-gray-50 border-b">
         <span className="text-sm text-gray-600">{syncStatus}</span>
-        <button
-          onClick={handleSync}
-          disabled={isSyncing}
-          className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-          {isSyncing ? 'Syncing...' : 'Re-sync Backend'}
-        </button>
       </div>
 
       {/* Messages */}

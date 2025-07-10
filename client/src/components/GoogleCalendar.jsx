@@ -24,6 +24,13 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
     localStorage.setItem('calendarView', view);
   }, [view]);
 
+  // Auto-scroll to current time when switching to week or day view
+  useEffect(() => {
+    if (view === 'week' || view === 'day') {
+      scrollToCurrentTime();
+    }
+  }, [view]);
+
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
   const startDate = startOfWeek(monthStart, { weekStartsOn: 0 });
@@ -120,28 +127,32 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
     }
   };
 
+  const scrollToCurrentTime = () => {
+    setTimeout(() => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinutes = now.getMinutes();
+      const currentTimePosition = (currentHour * 64) + (currentMinutes / 60 * 64);
+      
+      // Find the scrollable container and scroll to current time
+      const scrollContainer = document.querySelector('.flex-1.overflow-y-auto');
+      if (scrollContainer) {
+        scrollContainer.scrollTo({
+          top: Math.max(0, currentTimePosition - 200), // Offset to center the red line
+          behavior: 'smooth'
+        });
+      }
+    }, 100); // Small delay to ensure the component has updated
+  };
+
   const goToToday = () => {
     const today = new Date();
     setCurrentDate(today);
     setSelectedDate(today);
     
-    // If in week view, scroll to current time after a short delay
-    if (view === 'week') {
-      setTimeout(() => {
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinutes = now.getMinutes();
-        const currentTimePosition = (currentHour * 64) + (currentMinutes / 60 * 64);
-        
-        // Find the scrollable container and scroll to current time
-        const scrollContainer = document.querySelector('.flex-1.overflow-y-auto');
-        if (scrollContainer) {
-          scrollContainer.scrollTo({
-            top: Math.max(0, currentTimePosition - 200), // Offset to center the red line
-            behavior: 'smooth'
-          });
-        }
-      }, 100); // Small delay to ensure the component has updated
+    // Scroll to current time for week and day views
+    if (view === 'week' || view === 'day') {
+      scrollToCurrentTime();
     }
   };
 
