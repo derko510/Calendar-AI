@@ -96,16 +96,29 @@ Respond with JSON in this format:
   "type": "CREATE_EVENT" or "DELETE_EVENT" or "QUERY_EVENTS",
   "keywords": ["array", "of", "relevant", "keywords"],
   "timeframe": "past" or "future" or "specific_date" or null,
-  "date_mentioned": "YYYY-MM-DD" or null
+  "date_mentioned": "YYYY-MM-DD" or null,
+  "deleteAll": true or false // true if user wants to delete multiple/all matching events
 }
 
-Examples:
+DELETION INTENT EXAMPLES:
+- "delete all focus time" → {"type": "DELETE_EVENT", "keywords": ["focus", "time"], "deleteAll": true}
+- "remove all gym sessions" → {"type": "DELETE_EVENT", "keywords": ["gym"], "deleteAll": true}
+- "cancel everything today" → {"type": "DELETE_EVENT", "keywords": [], "timeframe": "specific_date", "deleteAll": true}
+- "delete all of them" → {"type": "DELETE_EVENT", "keywords": [], "deleteAll": true}
+- "remove all my meetings" → {"type": "DELETE_EVENT", "keywords": ["meeting"], "deleteAll": true}
+- "clear my calendar" → {"type": "DELETE_EVENT", "keywords": [], "deleteAll": true}
+- "delete focus time" → {"type": "DELETE_EVENT", "keywords": ["focus", "time"], "deleteAll": true}
+- "remove studying events" → {"type": "DELETE_EVENT", "keywords": ["studying"], "deleteAll": true}
+
+OTHER EXAMPLES:
 - "When was my last dentist appointment?" → {"type": "QUERY_EVENTS", "keywords": ["dentist"], "timeframe": "past"}
 - "What meetings do I have tomorrow?" → {"type": "QUERY_EVENTS", "keywords": ["meeting"], "timeframe": "future"}
 - "Schedule dinner with John at 7 PM Friday" → {"type": "CREATE_EVENT", "keywords": ["dinner", "John"]}
-- "Delete my lunch meeting today" → {"type": "DELETE_EVENT", "keywords": ["lunch", "meeting"], "timeframe": "specific_date"}
-- "Cancel the dentist appointment" → {"type": "DELETE_EVENT", "keywords": ["dentist"], "timeframe": null}
-- "Remove gym session tomorrow" → {"type": "DELETE_EVENT", "keywords": ["gym"], "timeframe": "future"}
+
+Key rules:
+- Words like "all", "everything", "them" indicate deleteAll: true
+- Be aggressive about deletion intent - if user mentions removing/deleting something, assume they want ALL matching events
+- Extract keywords loosely - "focus time" should match "🎯 Focus time", "studying", etc.
 `;
 
     const response = await this.llm.generate(prompt, { temperature: 0.1 });
@@ -152,9 +165,30 @@ Examples:
         .from(calendarEvents)
         .where(eq(calendarEvents.userId, userId));
 
-      // Apply keyword filters
+      // Apply keyword filters with expanded synonyms
       if (intent.keywords && intent.keywords.length > 0) {
-        const keywordFilters = intent.keywords.map(keyword => 
+        // Expand keywords with synonyms for better matching
+        const expandedKeywords = [];
+        for (const keyword of intent.keywords) {
+          expandedKeywords.push(keyword);
+          
+          // Add synonyms for common terms
+          const synonyms = {
+            'focus': ['studying', 'study', 'learn', 'learning', '🎯'],
+            'study': ['focus', 'studying', 'learn', 'learning', '🎯'],
+            'studying': ['focus', 'study', 'learn', 'learning', '🎯'],
+            'gym': ['workout', 'exercise', 'fitness', 'training'],
+            'workout': ['gym', 'exercise', 'fitness', 'training'],
+            'meeting': ['call', 'standup', 'sync', 'conference'],
+            'call': ['meeting', 'standup', 'sync', 'conference']
+          };
+          
+          if (synonyms[keyword.toLowerCase()]) {
+            expandedKeywords.push(...synonyms[keyword.toLowerCase()]);
+          }
+        }
+        
+        const keywordFilters = expandedKeywords.map(keyword => 
           or(
             ilike(calendarEvents.title, `%${keyword}%`),
             ilike(calendarEvents.description, `%${keyword}%`),
@@ -298,13 +332,20 @@ Be specific about dates and times when possible.
         };
       }
 
-      // Check if user wants to delete all matching events
-      const deleteAllKeywords = ['delete all', 'remove all', 'cancel all', 'delete them all', 'remove them all'];
+      // Check if user wants to delete all matching events - be more aggressive now
+      const deleteAllKeywords = ['delete all', 'remove all', 'cancel all', 'delete them all', 'remove them all', 'all of them', 'everything', 'clear'];
       const wantsToDeleteAll = deleteAllKeywords.some(keyword => 
         userMessage.toLowerCase().includes(keyword.toLowerCase())
+      ) || intent.deleteAll === true; // Also check the intent flag
+
+      // NEW: Be more aggressive - if multiple events and user mentioned deletion words, assume bulk deletion
+      const aggressiveDeletionWords = ['delete', 'remove', 'cancel', 'clear'];
+      const mentionsDeletion = aggressiveDeletionWords.some(word => 
+        userMessage.toLowerCase().includes(word.toLowerCase())
       );
 
-      if (matchingEvents.events.length > 1 && !wantsToDeleteAll) {
+      // Only ask for clarification if we have many events AND user didn't clearly indicate bulk deletion
+      if (matchingEvents.events.length > 5 && !wantsToDeleteAll && !mentionsDeletion) {
         return {
           success: false,
           message: `I found ${matchingEvents.events.length} events that match your request. Please be more specific about which event to delete, or say "delete all" to remove all matching events.`,
@@ -572,7 +613,7 @@ If you cannot extract clear event details, respond with:
       }).join('\n');
 
       const prompt = `
-User wants to delete an event with this request: "${userMessage}"
+User wants to delete events with this request: "${userMessage}"
 
 Available events:
 ${eventList}
@@ -583,11 +624,28 @@ Which event(s) should be deleted? Respond with JSON:
   "confidence": "high" or "medium" or "low" // How confident you are in the match
 }
 
-Special instructions:
-- If user says "delete all", "remove all", "cancel all", or similar, and multiple events have the same title, return ALL matching events
-- If user mentions specific event title like "🎯 Focus time", return ALL events with that exact title
-- If user says "delete all events named X", return ALL events with title X
-- Only include events that clearly match the user's deletion request. If unsure, use lower confidence.
+AGGRESSIVE MATCHING RULES:
+- "delete all focus time" → Match ALL events containing "focus", "Focus", "🎯", or "studying" 
+- "remove gym" → Match ALL events containing "gym", "Gym", "workout", "exercise"
+- "cancel meetings" → Match ALL events containing "meeting", "Meeting", "call", "standup"
+- "delete studying" → Match ALL events containing "studying", "study", "focus", "🎯"
+- "clear my calendar" → Match ALL events
+- "delete all of them" → Match ALL events from previous context
+
+PATTERN MATCHING:
+- Ignore emojis when matching (🎯 Focus time matches "focus time")
+- Match partial words ("focus" matches "Focus time", "focusing", etc.)
+- Match synonyms (studying = focus = learning)
+- Be case insensitive
+- If user mentions any deletion word, assume they want ALL matching events unless they specify "one" or "the"
+
+EXAMPLES:
+- User: "delete all focus time" → Return ALL events with focus/studying/🎯 in title
+- User: "remove gym sessions" → Return ALL events with gym/workout in title  
+- User: "cancel everything" → Return ALL events
+- User: "delete focus time" (no "all") → STILL return ALL matching events (be aggressive)
+
+BE AGGRESSIVE: When in doubt about quantity, return ALL matching events rather than asking for clarification.
 `;
 
       const response = await this.llm.generate(prompt, { temperature: 0.1 });
