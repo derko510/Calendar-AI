@@ -297,12 +297,16 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
           events={events}
           handleDateClick={handleDateClick}
           handleEventClick={handleEventClick}
+          handleEventMouseEnter={handleEventMouseEnter}
+          handleEventMouseLeave={handleEventMouseLeave}
         />;
       case 'day':
         return <DayView 
           currentDate={currentDate}
           events={events}
           handleEventClick={handleEventClick}
+          handleEventMouseEnter={handleEventMouseEnter}
+          handleEventMouseLeave={handleEventMouseLeave}
         />;
       default:
         return <MonthView 

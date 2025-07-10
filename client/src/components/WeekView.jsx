@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React from 'react';
 import {format,startOfWeek,addDays,startOfDay,setHours,isToday} from 'date-fns';
 
 /**
@@ -15,14 +15,10 @@ const WeekView = ({
   currentDate,
   events = [],
   handleDateClick,
-  handleEventClick
+  handleEventClick,
+  handleEventMouseEnter,
+  handleEventMouseLeave
 }) => {
-  const [tooltip, setTooltip] = useState({
-    visible: false,
-    x: 0,
-    y: 0,
-    content: ''
-  });
   /**
    * Gets the start of the current week (Sunday) based on currentDate.
    * @returns {Date} The Sunday date that starts the current week.
@@ -129,35 +125,6 @@ const WeekView = ({
     }
   };
 
-  /**
-   * Shows tooltip on event hover with time and description.
-   * @param {Object} event - The event object being hovered.
-   * @param {Event} e - The DOM mouse event.
-   */
-  const handleEventMouseEnter = (event, e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const eventStart = new Date(event.start?.dateTime || event.start?.date || event.start);
-    const eventEnd = event.end?.dateTime 
-      ? new Date(event.end.dateTime) 
-      : new Date(eventStart.getTime() + 60 * 60 * 1000);
-    
-    const timeRange = `${format(eventStart, 'h:mm a')} - ${format(eventEnd, 'h:mm a')}`;
-    const description = event.description || 'No description';
-    
-    setTooltip({
-      visible: true,
-      x: rect.left + rect.width / 2,
-      y: rect.top - 10,
-      content: `${timeRange}\n${description}`
-    });
-  };
-
-  /**
-   * Hides tooltip when mouse leaves event.
-   */
-  const handleEventMouseLeave = () => {
-    setTooltip({ visible: false, x: 0, y: 0, content: '' });
-  };
 
   // Calculate current time position for red line
   const now = new Date();
@@ -286,23 +253,6 @@ const WeekView = ({
         </div>
       </div>
       
-      {/* Custom Tooltip */}
-      {tooltip.visible && (
-        <div
-          className="fixed bg-gray-900 text-white text-xs p-3 rounded-lg shadow-lg z-50 max-w-xs pointer-events-none"
-          style={{
-            left: `${tooltip.x}px`,
-            top: `${tooltip.y}px`,
-            transform: 'translateX(-50%) translateY(-100%)'
-          }}
-        >
-          <div className="whitespace-pre-line font-medium">
-            {tooltip.content}
-          </div>
-          {/* Tooltip arrow */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-        </div>
-      )}
     </div>
   );
 };
