@@ -21,7 +21,6 @@ const RealCalendarBot = ({ userCredential, events, onEventCreated, onEventUpdate
     lastOperation: null, // Track last operation (create, delete, etc.)
     conversationHistory: [] // Track recent message pairs for context
   });
-  const [isUpdatingCalendar, setIsUpdatingCalendar] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -177,40 +176,30 @@ Try asking:
         if (data.success) {
           // Handle event creation - refresh from Google to get accurate data
           if (data.event && data.conversationUpdate?.lastOperation === 'create') {
-            console.log('🔄 Event created, refreshing calendar in background...');
-            setIsUpdatingCalendar(true);
             // Use setTimeout to refresh after a brief delay to ensure Google Calendar is updated
             setTimeout(() => {
               onRefreshEvents?.();
-              setIsUpdatingCalendar(false);
             }, 1000);
           }
           
           // Handle event deletion - immediate update for better UX
           if (data.deletedEvents && data.conversationUpdate?.lastOperation === 'delete') {
-            console.log(`🔄 ${data.deletedEvents.length} event(s) deleted, updating calendar...`);
             const deletedIds = data.deletedEvents.map(event => event.googleEventId);
             onEventDeleted?.(deletedIds);
             
             // Also refresh from Google after a delay to ensure consistency
-            setIsUpdatingCalendar(true);
             setTimeout(() => {
-              console.log('🔄 Background refresh to ensure consistency...');
               onRefreshEvents?.();
-              setIsUpdatingCalendar(false);
             }, 2000);
           }
           
           // Handle single event deletion (fallback for older responses)
           if (data.deletedEvent && data.conversationUpdate?.lastOperation === 'delete') {
-            console.log('🔄 Event deleted, updating calendar...');
             onEventDeleted?.(data.deletedEvent.googleEventId);
             
-            // Background refresh for consistency
-            setIsUpdatingCalendar(true);
+            // Silent background refresh for consistency
             setTimeout(() => {
               onRefreshEvents?.();
-              setIsUpdatingCalendar(false);
             }, 2000);
           }
         }
@@ -250,12 +239,10 @@ Try asking:
           </div>
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${
-              isUpdatingCalendar ? 'bg-blue-400 animate-pulse' : 
               isSynced ? 'bg-green-300' : 'bg-yellow-300'
             }`}></div>
             <span className="text-xs">
-              {isUpdatingCalendar ? 'Updating...' : 
-               isSynced ? 'Synced' : 'Syncing...'}
+              {isSynced ? 'Synced' : 'Syncing...'}
             </span>
           </div>
         </div>
