@@ -505,10 +505,21 @@ Extract event details from this natural language request and respond with JSON:
 
 User message: "${userMessage}"
 
+IMPORTANT PARSING RULES:
+- If user says "create events for [activity]", the title should be just "[activity]", not "create events for [activity]"
+- If user mentions "2pm", "2 PM", "2:00 PM", convert to "14:00" in 24-hour format
+- If user says "events" (plural), treat as single event for now - multiple events will be handled separately
+- Pay attention to time format - "2pm" = "14:00", not "12:00"
+
+EXAMPLES:
+- "create events for studying at 2pm" → title: "studying", startTime: "14:00"
+- "schedule dinner at 7 PM" → title: "dinner", startTime: "19:00"
+- "create event studying on 12th" → title: "studying"
+
 Extract the following information:
-- title: Event title/summary
+- title: Event title/summary (clean activity name, not "create events for X")
 - date: Date in YYYY-MM-DD format (if relative like "tomorrow", calculate the actual date)
-- startTime: Start time in HH:MM format (24-hour)
+- startTime: Start time in HH:MM format (24-hour) - CONVERT PM TIMES CORRECTLY
 - endTime: End time in HH:MM format (24-hour) - if not specified, add 1 hour to start time
 - location: Location if mentioned
 - description: Additional details
