@@ -101,12 +101,14 @@ Respond with JSON in this format:
 }
 
 DELETION INTENT EXAMPLES:
+- "delete all events" → {"type": "DELETE_EVENT", "keywords": [], "deleteAll": true}
+- "clear my calendar" → {"type": "DELETE_EVENT", "keywords": [], "deleteAll": true}
+- "remove everything" → {"type": "DELETE_EVENT", "keywords": [], "deleteAll": true}
 - "delete all focus time" → {"type": "DELETE_EVENT", "keywords": ["focus", "time"], "deleteAll": true}
 - "remove all gym sessions" → {"type": "DELETE_EVENT", "keywords": ["gym"], "deleteAll": true}
 - "cancel everything today" → {"type": "DELETE_EVENT", "keywords": [], "timeframe": "specific_date", "deleteAll": true}
 - "delete all of them" → {"type": "DELETE_EVENT", "keywords": [], "deleteAll": true}
 - "remove all my meetings" → {"type": "DELETE_EVENT", "keywords": ["meeting"], "deleteAll": true}
-- "clear my calendar" → {"type": "DELETE_EVENT", "keywords": [], "deleteAll": true}
 - "delete focus time" → {"type": "DELETE_EVENT", "keywords": ["focus", "time"], "deleteAll": true}
 - "remove studying events" → {"type": "DELETE_EVENT", "keywords": ["studying"], "deleteAll": true}
 
@@ -117,8 +119,10 @@ OTHER EXAMPLES:
 
 Key rules:
 - Words like "all", "everything", "them" indicate deleteAll: true
+- "delete all events" with no keywords means delete ALL calendar events
 - Be aggressive about deletion intent - if user mentions removing/deleting something, assume they want ALL matching events
 - Extract keywords loosely - "focus time" should match "🎯 Focus time", "studying", etc.
+- Empty keywords array with deleteAll: true means delete ALL events
 `;
 
     const response = await this.llm.generate(prompt, { temperature: 0.1 });
@@ -203,6 +207,8 @@ Key rules:
           )
         );
       }
+      // If no keywords but deleteAll is true (e.g., "delete all events"), don't add keyword filters
+      // This will return ALL events for the user
 
       // Apply timeframe filters
       const now = new Date();
@@ -330,6 +336,38 @@ Be specific about dates and times when possible.
           success: false,
           message: "I couldn't find any events matching your deletion request. Please be more specific."
         };
+      }
+
+      // Safety check: If deleting ALL events (no keywords), require confirmation
+      if ((!intent.keywords || intent.keywords.length === 0) && intent.deleteAll && matchingEvents.events.length > 0) {
+        // Check if user is confirming a previous "delete all" request
+        const confirmationWords = ['yes', 'confirm', 'proceed', 'delete', 'ok', 'sure'];
+        const denyWords = ['no', 'cancel', 'stop', 'abort', 'nevermind'];
+        
+        const isConfirming = confirmationWords.some(word => 
+          userMessage.toLowerCase().includes(word.toLowerCase())
+        );
+        const isDenying = denyWords.some(word => 
+          userMessage.toLowerCase().includes(word.toLowerCase())
+        );
+
+        // If user is denying, cancel the operation
+        if (isDenying) {
+          return {
+            success: false,
+            message: "Operation cancelled. Your calendar events are safe."
+          };
+        }
+
+        // If not confirming, ask for confirmation
+        if (!isConfirming) {
+          return {
+            success: false,
+            message: `⚠️ You're about to delete ALL ${matchingEvents.events.length} events from your calendar. This cannot be undone.\n\nAre you sure you want to proceed? Reply with "yes" to confirm or "no" to cancel.`,
+            requiresConfirmation: true,
+            eventCount: matchingEvents.events.length
+          };
+        }
       }
 
       // Check if user wants to delete all matching events - be more aggressive now
