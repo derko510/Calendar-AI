@@ -125,12 +125,25 @@ const RealCalendarBot = ({ userCredential, events, onEventCreated, onEventUpdate
         const syncMessage = {
           id: Date.now(),
           type: 'bot',
-          content: `Perfect! I've synced ${data.eventCount} events from your Google Calendar. Now you can ask me questions about your actual calendar data!
+          content: `Hi! I'm your Calendar AI. Here's some things I can do:
 
-Try asking:
+📅 **View & Query Events**
 • "When is my next meeting?"
 • "What do I have scheduled this week?"
-• "Find my dentist appointments"`,
+• "Show me events for tomorrow"
+
+➕ **Create Events**
+• "Schedule dinner with John at 7 PM Friday"
+• "Create a meeting for 2 PM tomorrow"
+• "Add studying session for July 15th at 3 PM"
+
+🗑️ **Delete Events**
+• "Delete all focus time events"
+• "Remove my 3 PM meeting"
+• "Cancel all events today"
+
+❓ **Get Help**
+Type "help" anytime to see these options again!`,
           timestamp: new Date()
         };
         setMessages(prev => [...prev, syncMessage]);

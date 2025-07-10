@@ -18,6 +18,41 @@ export class RAGService {
 
   async processQuery(userId, userMessage, conversationContext = {}) {
     try {
+      // Check for help command
+      const helpWords = ['help', 'options', 'what can you do', 'commands', 'capabilities'];
+      const isHelpRequest = helpWords.some(word => 
+        userMessage.toLowerCase().trim().includes(word.toLowerCase())
+      );
+      
+      if (isHelpRequest) {
+        return {
+          success: true,
+          message: `Hi! I'm your Calendar AI. Here's some things I can do:
+
+📅 **View & Query Events**
+• "When is my next meeting?"
+• "What do I have scheduled this week?"
+• "Show me events for tomorrow"
+
+➕ **Create Events**
+• "Schedule dinner with John at 7 PM Friday"
+• "Create a meeting for 2 PM tomorrow"
+• "Add studying session for July 15th at 3 PM"
+
+🗑️ **Delete Events**
+• "Delete all focus time events"
+• "Remove my 3 PM meeting"
+• "Cancel all events today"
+
+❓ **Get Help**
+Type "help" anytime to see these options again!`,
+          conversationUpdate: {
+            recentEvents: conversationContext.recentEvents || [],
+            lastOperation: 'help'
+          }
+        };
+      }
+
       // Check if user is responding to a confirmation prompt
       const confirmationWords = ['yes', 'confirm', 'proceed', 'delete', 'ok', 'sure'];
       const denyWords = ['no', 'cancel', 'stop', 'abort', 'nevermind'];
