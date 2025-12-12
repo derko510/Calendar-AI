@@ -208,6 +208,21 @@ Try asking:
 
       if (!data.success) {
         console.warn('Real calendar chat returned a handled error:', data.message);
+          events: data.events || [],
+          isError: !data.success
+        };
+
+        setMessages(prev => [...prev, botMessage]);
+
+        if (data.success && data.events?.length) {
+          await createGoogleEvents(data.events);
+        }
+
+        if (!data.success) {
+          console.warn('Real calendar chat returned a handled error:', data.message);
+        }
+      } else {
+        throw new Error(data.message || 'Failed to get response');
       }
     } catch (error) {
       console.error('Real calendar chat error:', error);
