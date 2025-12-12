@@ -4,7 +4,8 @@ export class CloudLLMService {
   constructor() {
     this.provider = process.env.LLM_PROVIDER || 'groq'; // groq, openai, or anthropic
     this.apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
-    this.model = process.env.LLM_MODEL || 'llama3-8b-8192'; // Groq model
+    // Using Llama 3.1 70B - Much smarter for date/time parsing and reasoning
+    this.model = process.env.LLM_MODEL || 'llama-3.1-70b-versatile'; // Groq model (70B is 8.75x larger than 8B)
   }
 
   async generate(prompt, options = {}) {
