@@ -133,15 +133,21 @@ Try asking:
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (response.ok) {
         const botMessage = {
           id: Date.now() + 1,
           type: 'bot',
           content: data.message || 'I received your message but had trouble processing it.',
           timestamp: new Date(),
-          events: data.events || []
+          events: data.events || [],
+          isError: !data.success
         };
+
         setMessages(prev => [...prev, botMessage]);
+
+        if (!data.success) {
+          console.warn('Real calendar chat returned a handled error:', data.message);
+        }
       } else {
         throw new Error(data.message || 'Failed to get response');
       }
