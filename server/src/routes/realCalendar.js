@@ -139,9 +139,9 @@ router.post('/chat', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Real calendar chat error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Sorry, I encountered an error processing your message.' 
+    res.status(200).json({
+      success: false,
+      message: 'Sorry, I encountered an error processing your message. Please check your LLM/API configuration and try again.'
     });
   }
 });
