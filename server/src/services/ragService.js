@@ -182,10 +182,104 @@ Be specific about dates and times when possible.
   }
 
   async handleCreateEvent(userId, userMessage, intent) {
-    // For now, return a message indicating this feature is coming soon
-    return {
-      success: false,
-      message: "Event creation is coming soon! For now, I can help you find and query your existing calendar events."
-    };
+    try {
+      // Step 1: Ask the LLM to structure the event details
+      const extractionPrompt = `
+Extract a calendar event from this request and respond with ONLY JSON.
+User request: "${userMessage}"
+
+The JSON must follow this shape:
+{
+  "title": "Concise title for the event",
+  "start": "ISO8601 datetime (e.g., 2024-08-12T19:00:00Z)",
+  "end": "ISO8601 datetime or null if not provided",
+  "location": "Location string or null",
+  "description": "Extra details or null",
+  "isAllDay": true or false
+}
+
+Rules:
+- If no end time is given, set it to 1 hour after start.
+- If only a date is given, mark isAllDay=true and set start to 00:00 local time.
+- Be conservative—avoid guessing far future years; prefer the next occurrence of the referenced day/date.
+`;
+
+      const llmResponse = await this.llm.generate(extractionPrompt, { temperature: 0.2 });
+      const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+
+      if (!jsonMatch) {
+        return {
+          success: false,
+          message: "I couldn't understand the event details. Could you rephrase with a date and time?"
+        };
+      }
+
+      let parsedEvent;
+      try {
+        parsedEvent = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error('Error parsing event JSON:', parseError);
+        return {
+          success: false,
+          message: "I had trouble reading the event details. Please try again with a clear date and time."
+        };
+      }
+
+      if (!parsedEvent.start) {
+        return {
+          success: false,
+          message: "I need a start date and time to create the event."
+        };
+      }
+
+      const startDatetime = new Date(parsedEvent.start);
+      const endDatetime = parsedEvent.end ? new Date(parsedEvent.end) : new Date(startDatetime.getTime() + 60 * 60 * 1000);
+
+      if (isNaN(startDatetime.getTime()) || isNaN(endDatetime.getTime())) {
+        return {
+          success: false,
+          message: "The date or time looked invalid. Please provide a clear date like 'July 12 at 7pm'."
+        };
+      }
+
+      // Step 2: Store the event locally (temporary ID since Google Calendar write is not wired yet)
+      const tempGoogleId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const newEvent = {
+        userId,
+        googleEventId: tempGoogleId,
+        title: parsedEvent.title || 'New Event',
+        description: parsedEvent.description || null,
+        startDatetime,
+        endDatetime,
+        location: parsedEvent.location || null,
+        attendees: [],
+        recurrence: null,
+        isAllDay: parsedEvent.isAllDay || false,
+        updatedAt: new Date(),
+      };
+
+      await db.insert(calendarEvents).values(newEvent);
+
+      const friendlyDate = startDatetime.toLocaleString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: newEvent.isAllDay ? undefined : '2-digit',
+        minute: newEvent.isAllDay ? undefined : '2-digit'
+      });
+
+      return {
+        success: true,
+        message: `Got it! I created "${newEvent.title}" for ${friendlyDate}. (Saved locally; Google Calendar write support is coming soon.)`,
+        events: [{ ...newEvent, id: tempGoogleId }]
+      };
+    } catch (error) {
+      console.error('Error handling create event:', error);
+      return {
+        success: false,
+        message: "I couldn't create that event right now. Please try again."
+      };
+    }
   }
 }
