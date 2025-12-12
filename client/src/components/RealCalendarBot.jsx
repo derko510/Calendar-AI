@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader2, Calendar, RefreshCw } from 'lucide-react';
 import googleCalendarService from '../services/googleCalendar';
 
-const RealCalendarBot = ({ userCredential, events }) => {
+const RealCalendarBot = ({ userCredential, events, onEventsCreated }) => {
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -91,6 +91,51 @@ Try asking:
     }
   };
 
+  const createGoogleEvents = async (newEvents = []) => {
+    if (!userCredential?.accessToken || newEvents.length === 0) return [];
+
+    googleCalendarService.setAccessToken(userCredential.accessToken);
+
+    const createdEvents = [];
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    for (const event of newEvents) {
+      try {
+        const startDate = new Date(event.start || event.startDatetime);
+        const endDate = event.end || event.endDatetime
+          ? new Date(event.end || event.endDatetime)
+          : new Date(startDate.getTime() + 60 * 60 * 1000);
+
+        const googleEventPayload = event.isAllDay
+          ? {
+              summary: event.title,
+              description: event.description || '',
+              start: { date: startDate.toISOString().split('T')[0] },
+              end: { date: endDate.toISOString().split('T')[0] },
+              location: event.location || undefined
+            }
+          : {
+              summary: event.title,
+              description: event.description || '',
+              start: { dateTime: startDate.toISOString(), timeZone },
+              end: { dateTime: endDate.toISOString(), timeZone },
+              location: event.location || undefined
+            };
+
+        const created = await googleCalendarService.createEvent('primary', googleEventPayload);
+        createdEvents.push(created);
+      } catch (createError) {
+        console.error('Failed to create Google Calendar event:', createError);
+      }
+    }
+
+    if (createdEvents.length > 0) {
+      onEventsCreated?.(createdEvents);
+    }
+
+    return createdEvents;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -133,15 +178,25 @@ Try asking:
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (response.ok) {
         const botMessage = {
           id: Date.now() + 1,
           type: 'bot',
           content: data.message || 'I received your message but had trouble processing it.',
           timestamp: new Date(),
-          events: data.events || []
+          events: data.events || [],
+          isError: !data.success
         };
+
         setMessages(prev => [...prev, botMessage]);
+
+        if (data.success && data.events?.length) {
+          await createGoogleEvents(data.events);
+        }
+
+        if (!data.success) {
+          console.warn('Real calendar chat returned a handled error:', data.message);
+        }
       } else {
         throw new Error(data.message || 'Failed to get response');
       }

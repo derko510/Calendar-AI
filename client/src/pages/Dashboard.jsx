@@ -143,6 +143,11 @@ const Dashboard = ({ userCredential }) => {
     );
   }
 
+  const handleEventsCreated = (newEvents = []) => {
+    if (!Array.isArray(newEvents) || newEvents.length === 0) return;
+    setEvents((prev) => [...prev, ...newEvents]);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-12">
       {/* Error Display */}
@@ -189,7 +194,11 @@ const Dashboard = ({ userCredential }) => {
               ) : backendAuth ? (
                 <RAGChatBot backendAuth={backendAuth} />
               ) : (
-                <RealCalendarBot userCredential={userCredential} events={events} />
+                <RealCalendarBot
+                  userCredential={userCredential}
+                  events={events}
+                  onEventsCreated={handleEventsCreated}
+                />
               )}
             </div>
           </div>
