@@ -11,7 +11,7 @@ function App() {
 
   useEffect(() => {
     console.log('🔍 Checking for saved Google authentication...');
-    
+    //test
     // Check for Google auth in localStorage
     const savedAuth = localStorage.getItem('googleAuth');
     if (savedAuth) {
