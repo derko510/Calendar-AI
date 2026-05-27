@@ -1,10 +1,12 @@
 import { format, isToday } from 'date-fns';
 import { getEventsForDate } from '../utils/dateUtils';
 
-const DayView = ({ 
-  currentDate, 
-  events, 
-  handleEventClick 
+const DayView = ({
+  currentDate,
+  events,
+  handleEventClick,
+  handleEventContextMenu,
+  deletingId
 }) => {
   const dayEvents = getEventsForDate(events, currentDate);
   const isTodayDate = isToday(currentDate);
@@ -35,9 +37,13 @@ const DayView = ({
         ) : (
           dayEvents.map((event, index) => (
             <div key={`${event.id}-${index}`} className="mb-4">
-              <div className="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer" onClick={(e) => handleEventClick(event, e)}>
+              <div
+                className={`flex items-start space-x-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
+                onClick={(e) => handleEventClick(event, e)}
+                onContextMenu={(e) => handleEventContextMenu?.(event, e)}
+              >
                 <div className="text-lg text-gray-600 font-medium min-w-[120px]">
-                  {event.start?.dateTime ? format(new Date(event.start.dateTime), 'HH:mm') : 'All day'}
+                  {event.start?.dateTime ? format(new Date(event.start.dateTime), 'h:mm a') : 'All day'}
                 </div>
                 <div className="flex-1">
                   <div className="text-xl font-medium text-gray-900 mb-1">

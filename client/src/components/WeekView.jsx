@@ -15,7 +15,9 @@ const WeekView = ({
   currentDate,
   events = [],
   handleDateClick,
-  handleEventClick
+  handleEventClick,
+  handleEventContextMenu,
+  deletingId
 }) => {
   const [tooltip, setTooltip] = useState({
     visible: false,
@@ -142,13 +144,16 @@ const WeekView = ({
       : new Date(eventStart.getTime() + 60 * 60 * 1000);
     
     const timeRange = `${format(eventStart, 'h:mm a')} - ${format(eventEnd, 'h:mm a')}`;
-    const description = event.description || 'No description';
-    
+    const rawDescription = event.description || '';
+    const description = rawDescription.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/gi, ' ').trim();
+    const location = event.location || '';
+    const lines = [timeRange, location, description].filter(Boolean).join('\n');
+
     setTooltip({
       visible: true,
       x: rect.left + rect.width / 2,
       y: rect.top - 10,
-      content: `${timeRange}\n${description}`
+      content: lines
     });
   };
 
@@ -192,8 +197,9 @@ const WeekView = ({
                 .map((event, eventIndex) => (
                   <div
                     key={`${event.id}-${eventIndex}`}
-                    className="bg-blue-500 text-white text-xs p-1 rounded truncate cursor-pointer hover:bg-blue-600 transition-colors"
+                    className={`bg-blue-500 text-white text-xs p-1 rounded truncate cursor-pointer hover:bg-blue-600 transition-colors ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
                     onClick={(e) => handleEventClickInternal(event, e)}
+                    onContextMenu={(e) => handleEventContextMenu?.(event, e)}
                     onMouseEnter={(e) => handleEventMouseEnter(event, e)}
                     onMouseLeave={handleEventMouseLeave}
                   >
@@ -261,21 +267,22 @@ const WeekView = ({
                     return (
                       <div
                         key={`${event.id}-${eventIndex}`}
-                        className={`absolute left-1 right-1 ${colorClass} text-white text-xs p-1 rounded z-10 cursor-pointer hover:opacity-90 transition-opacity`}
+                        className={`absolute left-1 right-1 ${colorClass} text-white text-xs p-1 rounded z-10 cursor-pointer hover:opacity-90 transition-opacity ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
                         style={{
                           top: `${position.top}px`,
                           height: `${position.height}px`
                         }}
                         onClick={(e) => handleEventClickInternal(event, e)}
+                        onContextMenu={(e) => handleEventContextMenu?.(event, e)}
                         onMouseEnter={(e) => handleEventMouseEnter(event, e)}
                         onMouseLeave={handleEventMouseLeave}
-                        aria-label={`${event.summary} from ${format(eventStart, 'HH:mm')} to ${format(eventEnd, 'HH:mm')}`}
+                        aria-label={`${event.summary} from ${format(eventStart, 'h:mm a')} to ${format(eventEnd, 'HH:mm')}`}
                       >
                         <div className="font-medium truncate">
                           {event.summary}
                         </div>
                         <div className="opacity-90">
-                          {format(eventStart, 'HH:mm')}
+                          {format(eventStart, 'h:mm a')}
                         </div>
                       </div>
                     );

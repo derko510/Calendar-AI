@@ -78,8 +78,7 @@ const Dashboard = ({ userCredential }) => {
         const timeMax = new Date();
         timeMax.setMonth(timeMax.getMonth() + 3);
         
-        const calendarEvents = await googleCalendarService.getEvents(
-          'primary',
+        const calendarEvents = await googleCalendarService.getAllCalendarEvents(
           timeMin.toISOString(),
           timeMax.toISOString(),
           250
@@ -132,6 +131,11 @@ const Dashboard = ({ userCredential }) => {
     window.location.reload();
   };
 
+  const handleEventsDeleted = (deletedIds) => {
+    const deletedIdSet = new Set(deletedIds);
+    setEvents(prevEvents => prevEvents.filter(event => !deletedIdSet.has(event.id)));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -173,6 +177,8 @@ const Dashboard = ({ userCredential }) => {
               onDateSelect={(date) => console.log('Selected date:', date)}
               onEventClick={(event) => console.log('Clicked event:', event)}
               onSignOut={handleSignOut}
+              userCredential={userCredential}
+              onDeleteEvent={(id) => setEvents(prev => prev.filter(e => e.id !== id))}
             />
           </div>
 
@@ -189,7 +195,12 @@ const Dashboard = ({ userCredential }) => {
               ) : backendAuth ? (
                 <RAGChatBot backendAuth={backendAuth} />
               ) : (
-                <RealCalendarBot userCredential={userCredential} events={events} />
+                <RealCalendarBot
+                  userCredential={userCredential}
+                  events={events}
+                  onEventsDeleted={handleEventsDeleted}
+                  onEventsCreated={(newEvents) => setEvents(prev => [...prev, ...newEvents])}
+                />
               )}
             </div>
           </div>

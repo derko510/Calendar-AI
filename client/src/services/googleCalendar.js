@@ -48,11 +48,30 @@ class GoogleCalendarService {
         }
       });
 
-      return response.data.items || [];
+      return (response.data.items || []).map(e => ({ ...e, calendarId }));
     } catch (error) {
       console.error('Error fetching events:', error);
       throw error;
     }
+  }
+
+  async getAllCalendarEvents(timeMin = null, timeMax = null, maxResults = 250) {
+    const calendars = await this.getCalendarList();
+    const writableRoles = new Set(['owner', 'writer']);
+    const results = await Promise.allSettled(
+      calendars.map(cal => this.getEvents(cal.id, timeMin, timeMax, maxResults).then(evts =>
+        evts.map(e => ({ ...e, isWritable: writableRoles.has(cal.accessRole) }))
+      ))
+    );
+    const seen = new Set();
+    return results
+      .filter(r => r.status === 'fulfilled')
+      .flatMap(r => r.value)
+      .filter(e => {
+        if (seen.has(e.id)) return false;
+        seen.add(e.id);
+        return true;
+      });
   }
 
   async createEvent(calendarId = 'primary', eventData) {

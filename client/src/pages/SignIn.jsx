@@ -1,6 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const SignIn = ({ onLoginSuccess }) => {
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const isGoogleConfigured = Boolean(googleClientId && googleClientId !== 'your-google-client-id');
+  const tokenClientRef = useRef(null);
+  const [isGoogleReady, setIsGoogleReady] = useState(false);
+  const [authError, setAuthError] = useState('');
+
   useEffect(() => {
     // Load Google Identity Services
     const script = document.createElement('script');
@@ -18,112 +24,70 @@ const SignIn = ({ onLoginSuccess }) => {
   }, []);
 
   const initializeGoogleAuth = () => {
-    if (window.google) {
-      window.google.accounts.id.initialize({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-        callback: () => {}, // Not used for auth code flow
+    if (window.google && isGoogleConfigured) {
+      tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+        client_id: googleClientId,
+        scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+        callback: handleTokenResponse,
       });
+      setIsGoogleReady(true);
+    }
+  };
+
+  const handleTokenResponse = async (tokenResponse) => {
+    if (tokenResponse?.error) {
+      setAuthError(tokenResponse.error_description || tokenResponse.error);
+      return;
+    }
+
+    if (!tokenResponse?.access_token) {
+      setAuthError('Google did not return an access token.');
+      return;
+    }
+
+    try {
+      const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          Authorization: `Bearer ${tokenResponse.access_token}`,
+        },
+      });
+
+      const profile = profileResponse.ok ? await profileResponse.json() : {};
+      const expiresAt = Date.now() + Number(tokenResponse.expires_in || 3600) * 1000;
+      const userData = {
+        accessToken: tokenResponse.access_token,
+        expiresAt,
+        tokenType: tokenResponse.token_type || 'Bearer',
+        scope: tokenResponse.scope,
+        id: profile.id,
+        email: profile.email,
+        name: profile.name,
+        picture: profile.picture,
+        profile,
+      };
+
+      localStorage.setItem('googleAuth', JSON.stringify(userData));
+      onLoginSuccess(userData);
+    } catch (error) {
+      console.error('Google sign-in failed:', error);
+      setAuthError('Google sign-in worked, but profile loading failed. Try again.');
     }
   };
 
   const handleGoogleSignIn = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    
-    // Try different redirect URI formats to match Google Console
-    const currentOrigin = window.location.origin;
-    const redirectUri = currentOrigin.endsWith('/') ? currentOrigin.slice(0, -1) : currentOrigin;
-    
-    const scope = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events';
-    
-    console.log('=== OAuth Debug Info ===');
-    console.log('Client ID:', clientId);
-    console.log('Current URL:', window.location.href);
-    console.log('Window Origin:', window.location.origin);
-    console.log('Redirect URI (cleaned):', redirectUri);
-    console.log('Protocol:', window.location.protocol);
-    console.log('Hostname:', window.location.hostname);
-    console.log('Port:', window.location.port);
-    
-    // Use authorization code flow
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${encodeURIComponent(clientId)}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-      `scope=${encodeURIComponent(scope)}&` +
-      `response_type=token&` +
-      `include_granted_scopes=true&` +
-      `state=calendar_auth`;
-    
-    console.log('=== Full Auth URL ===');
-    console.log(authUrl);
-    console.log('========================');
-    
-    // Give user a chance to see the debug info before redirecting
-    setTimeout(() => {
-      window.location.href = authUrl;
-    }, 1000);
-  };
-
-  // Check for OAuth callback in URL
-  useEffect(() => {
-    console.log('=== Checking for OAuth callback ===');
-    console.log('Current URL:', window.location.href);
-    console.log('Hash:', window.location.hash);
-    
-    // Check for error in URL first
-    const urlParams = new URLSearchParams(window.location.search);
-    const error = urlParams.get('error');
-    const errorDescription = urlParams.get('error_description');
-    
-    if (error) {
-      console.error('OAuth Error:', error);
-      console.error('Error Description:', errorDescription);
-      alert(`Authentication failed: ${error}\n${errorDescription}`);
+    if (!isGoogleConfigured) {
+      alert('Google OAuth is not configured locally. Add VITE_GOOGLE_CLIENT_ID to client/.env, then restart the frontend dev server.');
       return;
     }
-    
-    // Check for success callback in hash
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const expiresIn = hashParams.get('expires_in');
-    const state = hashParams.get('state');
-    const tokenType = hashParams.get('token_type');
-    const scope = hashParams.get('scope');
-    
-    console.log('Hash params:', {
-      accessToken: accessToken ? 'Found' : 'Not found',
-      expiresIn,
-      state,
-      tokenType,
-      scope
-    });
-    
-    if (accessToken && state === 'calendar_auth') {
-      console.log('✅ OAuth success! Processing token...');
-      const expiresAt = Date.now() + (parseInt(expiresIn) * 1000);
-      
-      const userData = {
-        accessToken,
-        expiresAt,
-        tokenType,
-        scope,
-        profile: {
-          // We'll get profile info after successful auth
-        }
-      };
 
-      localStorage.setItem('googleAuth', JSON.stringify(userData));
-      console.log('Saved auth data to localStorage');
-      
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      
-      onLoginSuccess(userData);
-    } else if (window.location.hash && !accessToken) {
-      console.warn('Hash found but no access token:', window.location.hash);
+    if (!tokenClientRef.current) {
+      setAuthError('Google sign-in is still loading. Try again in a moment.');
+      return;
     }
-  }, [onLoginSuccess]);
 
-
+    setAuthError('');
+    tokenClientRef.current.requestAccessToken({ prompt: 'consent' });
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6">
@@ -141,7 +105,8 @@ const SignIn = ({ onLoginSuccess }) => {
           <div className="flex justify-center items-center mb-8">
             <button
               onClick={handleGoogleSignIn}
-              className="inline-flex items-center px-6 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              disabled={!isGoogleConfigured || !isGoogleReady}
+              className="inline-flex items-center px-6 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -155,8 +120,17 @@ const SignIn = ({ onLoginSuccess }) => {
           
           <div>
             <p className="text-sm text-gray-400">
-              Secure authentication via Google OAuth
+              {!isGoogleConfigured
+                ? 'Google OAuth client ID is missing in client/.env'
+                : !isGoogleReady
+                ? 'Loading Google sign-in...'
+                : 'Secure authentication via Google OAuth'}
             </p>
+            {authError && (
+              <p className="mt-3 text-sm text-red-600">
+                {authError}
+              </p>
+            )}
           </div>
         </div>
       </div>

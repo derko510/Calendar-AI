@@ -2,14 +2,16 @@
 
 export class CloudLLMService {
   constructor() {
-    this.provider = process.env.LLM_PROVIDER || 'groq'; // groq, openai, or anthropic
-    this.apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
-    this.model = process.env.LLM_MODEL || 'llama3-8b-8192'; // Groq model
+    this.provider = process.env.LLM_PROVIDER || 'gemini';
+    this.apiKey = process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
+    this.model = process.env.LLM_MODEL || 'gemini-2.0-flash';
   }
 
   async generate(prompt, options = {}) {
     try {
-      if (this.provider === 'groq') {
+      if (this.provider === 'gemini') {
+        return await this.generateGemini(prompt, options);
+      } else if (this.provider === 'groq') {
         return await this.generateGroq(prompt, options);
       } else if (this.provider === 'openai') {
         return await this.generateOpenAI(prompt, options);
@@ -20,6 +22,28 @@ export class CloudLLMService {
       console.error('Cloud LLM error:', error);
       throw error;
     }
+  }
+
+  async generateGemini(prompt, options = {}) {
+    const model = this.model || 'gemini-2.0-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: options.temperature ?? 0.7,
+          maxOutputTokens: options.max_tokens ?? 800,
+        },
+      }),
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Gemini API error ${response.status}: ${err}`);
+    }
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   }
 
   async generateGroq(prompt, options = {}) {

@@ -1,0 +1,322 @@
+{
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\package.json": {
+    "mtime": 1779865403.8658028,
+    "ast_hash": "0b4ca54e6bbe98c22a5250b51f274fed",
+    "semantic_hash": "0b4ca54e6bbe98c22a5250b51f274fed"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\.claude\\settings.local.json": {
+    "mtime": 1779880972.4573445,
+    "ast_hash": "b596ee6bd24cdb7d4870ac926da4e172",
+    "semantic_hash": "b596ee6bd24cdb7d4870ac926da4e172"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\package.json": {
+    "mtime": 1779865403.8562267,
+    "ast_hash": "cb5a6b5ffc292eb8f94dc39957f6c4d9",
+    "semantic_hash": "cb5a6b5ffc292eb8f94dc39957f6c4d9"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\postcss.config.js": {
+    "mtime": 1779865403.8577971,
+    "ast_hash": "470cfd3ee10fbff840b377e769485f3e",
+    "semantic_hash": "470cfd3ee10fbff840b377e769485f3e"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\tailwind.config.js": {
+    "mtime": 1779865403.8648002,
+    "ast_hash": "8e19f0ce68a6567944162bcaa259a864",
+    "semantic_hash": "8e19f0ce68a6567944162bcaa259a864"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\vercel.json": {
+    "mtime": 1779865403.8658028,
+    "ast_hash": "e9f003d381433b4f2d20edd603619617",
+    "semantic_hash": "e9f003d381433b4f2d20edd603619617"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\vite.config.js": {
+    "mtime": 1779877551.8905697,
+    "ast_hash": "84a60728c4e09db022f24da8489f115e",
+    "semantic_hash": "84a60728c4e09db022f24da8489f115e"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\App.jsx": {
+    "mtime": 1779865403.8577971,
+    "ast_hash": "e07765115e32f4c28343b10c7b04315c",
+    "semantic_hash": "e07765115e32f4c28343b10c7b04315c"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\main.jsx": {
+    "mtime": 1779865403.8628027,
+    "ast_hash": "7659180e125ef2ae58796d5eda861912",
+    "semantic_hash": "7659180e125ef2ae58796d5eda861912"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\Calendar.jsx": {
+    "mtime": 1779865403.8588016,
+    "ast_hash": "8072c3e3c8ac7bcecc660edab79b63a4",
+    "semantic_hash": "8072c3e3c8ac7bcecc660edab79b63a4"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\ChatBot.jsx": {
+    "mtime": 1779865403.8588016,
+    "ast_hash": "3a91ccde49504ea5a19f380a175e5292",
+    "semantic_hash": "3a91ccde49504ea5a19f380a175e5292"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\DayView.jsx": {
+    "mtime": 1779881208.5500426,
+    "ast_hash": "88241cb1ad95d5fdaf2169534b170269",
+    "semantic_hash": "88241cb1ad95d5fdaf2169534b170269"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\ErrorBoundary.jsx": {
+    "mtime": 1779865403.8598013,
+    "ast_hash": "a75ca3831a20c613fcc1c5c11f888dff",
+    "semantic_hash": "a75ca3831a20c613fcc1c5c11f888dff"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\EventModal.jsx": {
+    "mtime": 1779865403.8598013,
+    "ast_hash": "321cd9b073fa2659a751005d000a638b",
+    "semantic_hash": "321cd9b073fa2659a751005d000a638b"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\GoogleAuthProvider.jsx": {
+    "mtime": 1779865403.8598013,
+    "ast_hash": "8b2d698742b3e47e0f0b73eca3f61c03",
+    "semantic_hash": "8b2d698742b3e47e0f0b73eca3f61c03"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\GoogleCalendar.jsx": {
+    "mtime": 1779881048.642748,
+    "ast_hash": "79d54b0779c5d6d63f6fe61633d3b383",
+    "semantic_hash": "79d54b0779c5d6d63f6fe61633d3b383"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\MonthView.jsx": {
+    "mtime": 1779865403.8608024,
+    "ast_hash": "7b0397e379ca8e50af10f8d100f1f49c",
+    "semantic_hash": "7b0397e379ca8e50af10f8d100f1f49c"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\RAGChatBot.jsx": {
+    "mtime": 1779865403.8608024,
+    "ast_hash": "501f9a0f42d3fafa84f2d51b072944fa",
+    "semantic_hash": "501f9a0f42d3fafa84f2d51b072944fa"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\RealCalendarBot.jsx": {
+    "mtime": 1779880965.425408,
+    "ast_hash": "0cdd687e95c82e8adc98b29202d41676",
+    "semantic_hash": "0cdd687e95c82e8adc98b29202d41676"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\SimpleChatBot.jsx": {
+    "mtime": 1779865403.8618016,
+    "ast_hash": "cd69240bb9e6f4c6cc6aa63935a82983",
+    "semantic_hash": "cd69240bb9e6f4c6cc6aa63935a82983"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\TestRAGBot.jsx": {
+    "mtime": 1779865403.8618016,
+    "ast_hash": "aa9947f46010f5a842143765f02b4521",
+    "semantic_hash": "aa9947f46010f5a842143765f02b4521"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\TestStyles.jsx": {
+    "mtime": 1779865403.8618016,
+    "ast_hash": "ba56b3a8836c70dd0010784c3ca62b19",
+    "semantic_hash": "ba56b3a8836c70dd0010784c3ca62b19"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\components\\WeekView.jsx": {
+    "mtime": 1779881075.8855536,
+    "ast_hash": "ac2c731170db238554f4d2530b01f114",
+    "semantic_hash": "ac2c731170db238554f4d2530b01f114"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\pages\\Dashboard.jsx": {
+    "mtime": 1779881215.292693,
+    "ast_hash": "8a85ed56787ad1995de896d36d089ec5",
+    "semantic_hash": "8a85ed56787ad1995de896d36d089ec5"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\pages\\SignIn.jsx": {
+    "mtime": 1779878821.708485,
+    "ast_hash": "71f6e8e08f8b1add66a3314297514f92",
+    "semantic_hash": "71f6e8e08f8b1add66a3314297514f92"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\services\\authService.js": {
+    "mtime": 1779865403.8638027,
+    "ast_hash": "85f06bb67e9aa426ac354628c0cb330e",
+    "semantic_hash": "85f06bb67e9aa426ac354628c0cb330e"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\services\\chatbotService.js": {
+    "mtime": 1779865403.8638027,
+    "ast_hash": "cd3dae17c8a2c74fb7c6f58e5d80d11b",
+    "semantic_hash": "cd3dae17c8a2c74fb7c6f58e5d80d11b"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\services\\googleCalendar.js": {
+    "mtime": 1779879142.5304601,
+    "ast_hash": "19712d02488651bfc72dcdcf59ab7a7a",
+    "semantic_hash": "19712d02488651bfc72dcdcf59ab7a7a"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\src\\utils\\dateUtils.js": {
+    "mtime": 1779865403.8648002,
+    "ast_hash": "a44276b26672c455086dde249cafaeaf",
+    "semantic_hash": "a44276b26672c455086dde249cafaeaf"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\drizzle.config.js": {
+    "mtime": 1779865403.8675008,
+    "ast_hash": "df9fe4f43fa0b399e05afe45cac71cdd",
+    "semantic_hash": "df9fe4f43fa0b399e05afe45cac71cdd"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\package.json": {
+    "mtime": 1779865403.8694074,
+    "ast_hash": "d9614b7c712618edc54e73e29a326a43",
+    "semantic_hash": "d9614b7c712618edc54e73e29a326a43"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\server.js": {
+    "mtime": 1779865403.8694074,
+    "ast_hash": "88384bce16c39269d0891e1aef54f9ec",
+    "semantic_hash": "88384bce16c39269d0891e1aef54f9ec"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\test-db.js": {
+    "mtime": 1779865403.876057,
+    "ast_hash": "aa7259d02814bbcc718248a5ae9b0385",
+    "semantic_hash": "aa7259d02814bbcc718248a5ae9b0385"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\vercel.json": {
+    "mtime": 1779865403.876057,
+    "ast_hash": "47492c4b436ce308d485c8d628baed97",
+    "semantic_hash": "47492c4b436ce308d485c8d628baed97"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\api\\index.js": {
+    "mtime": 1779865403.8675008,
+    "ast_hash": "284575481f103910bd4e965b17527ffb",
+    "semantic_hash": "284575481f103910bd4e965b17527ffb"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\api\\test-db.js": {
+    "mtime": 1779865403.8675008,
+    "ast_hash": "f2aec7d88a7bad64969a22b07dd4174f",
+    "semantic_hash": "f2aec7d88a7bad64969a22b07dd4174f"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\api\\test.js": {
+    "mtime": 1779865403.8675008,
+    "ast_hash": "e2b99df410464921b858b5763d455bec",
+    "semantic_hash": "e2b99df410464921b858b5763d455bec"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\api\\auth\\test.js": {
+    "mtime": 1779865403.8658028,
+    "ast_hash": "7c77fb5aa433c8bd72fc13adaefbb17b",
+    "semantic_hash": "7c77fb5aa433c8bd72fc13adaefbb17b"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\config\\swagger.js": {
+    "mtime": 1779865403.87041,
+    "ast_hash": "648bc630e2b6ca18a59275f65b255975",
+    "semantic_hash": "648bc630e2b6ca18a59275f65b255975"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\db\\connection.js": {
+    "mtime": 1779865403.87041,
+    "ast_hash": "6b91a27568bd780217e73c72f7462122",
+    "semantic_hash": "6b91a27568bd780217e73c72f7462122"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\db\\schema.js": {
+    "mtime": 1779865403.87041,
+    "ast_hash": "be017c512941acbd5211fe906560c37c",
+    "semantic_hash": "be017c512941acbd5211fe906560c37c"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\middleware\\auth.js": {
+    "mtime": 1779865403.87041,
+    "ast_hash": "2983c316793c7f428c448b4f007eed35",
+    "semantic_hash": "2983c316793c7f428c448b4f007eed35"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\middleware\\jwtAuth.js": {
+    "mtime": 1779865403.87041,
+    "ast_hash": "b6450dac36eaddb15c5e096ebcaad3d1",
+    "semantic_hash": "b6450dac36eaddb15c5e096ebcaad3d1"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\routes\\auth.js": {
+    "mtime": 1779865403.8719602,
+    "ast_hash": "4049601aa44548b1a3eccea383ae2107",
+    "semantic_hash": "4049601aa44548b1a3eccea383ae2107"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\routes\\calendar.js": {
+    "mtime": 1779865403.8719602,
+    "ast_hash": "3744cad98c444765cea17893a00bf02e",
+    "semantic_hash": "3744cad98c444765cea17893a00bf02e"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\routes\\chatbot.js": {
+    "mtime": 1779865403.8719602,
+    "ast_hash": "9cf5ff22994cda8891da66a7bda67c53",
+    "semantic_hash": "9cf5ff22994cda8891da66a7bda67c53"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\routes\\ragChatbot.js": {
+    "mtime": 1779865403.8719602,
+    "ast_hash": "c12747039ab7e808f015b145afe64822",
+    "semantic_hash": "c12747039ab7e808f015b145afe64822"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\routes\\realCalendar.js": {
+    "mtime": 1779880924.8411224,
+    "ast_hash": "51301b84a018574289e4c45b706f0053",
+    "semantic_hash": "51301b84a018574289e4c45b706f0053"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\routes\\simpleChatbot.js": {
+    "mtime": 1779865403.8719602,
+    "ast_hash": "cde9e522335991136db9639e596b356b",
+    "semantic_hash": "cde9e522335991136db9639e596b356b"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\routes\\testRag.js": {
+    "mtime": 1779865403.8735123,
+    "ast_hash": "3a4069e949cd5833b1459e7b0e25d1b6",
+    "semantic_hash": "3a4069e949cd5833b1459e7b0e25d1b6"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\services\\calendarSync.js": {
+    "mtime": 1779865403.8735123,
+    "ast_hash": "c882a569ff97020a359e58597808a7a7",
+    "semantic_hash": "c882a569ff97020a359e58597808a7a7"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\services\\cloudLLM.js": {
+    "mtime": 1779879317.2999976,
+    "ast_hash": "5df62bca8f0c7ff9786bd35a7a912034",
+    "semantic_hash": "5df62bca8f0c7ff9786bd35a7a912034"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\services\\ollamaService.js": {
+    "mtime": 1779865403.8735123,
+    "ast_hash": "1755b0bdc6f263f822c32895aa131758",
+    "semantic_hash": "1755b0bdc6f263f822c32895aa131758"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\services\\ragService.js": {
+    "mtime": 1779879326.2936454,
+    "ast_hash": "b00b27aea07a54a55863da786a1f6754",
+    "semantic_hash": "b00b27aea07a54a55863da786a1f6754"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\services\\simpleChatService.js": {
+    "mtime": 1779865403.8750515,
+    "ast_hash": "bed5916e4793032a1920758b5573b355",
+    "semantic_hash": "bed5916e4793032a1920758b5573b355"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\utils\\jwt.js": {
+    "mtime": 1779865403.8750515,
+    "ast_hash": "15b8c4d87ab80b32626a4b7f58d807d6",
+    "semantic_hash": "15b8c4d87ab80b32626a4b7f58d807d6"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\server\\src\\utils\\setupOllama.js": {
+    "mtime": 1779865403.8750515,
+    "ast_hash": "d815c5461b3ed1240d76372823cdaeef",
+    "semantic_hash": "d815c5461b3ed1240d76372823cdaeef"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\CLAUDE.md": {
+    "mtime": 1779865403.853156,
+    "ast_hash": "375b24109e63cd16321b4d752de1eef6",
+    "semantic_hash": "375b24109e63cd16321b4d752de1eef6"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\DEPLOYMENT.md": {
+    "mtime": 1779865403.8547103,
+    "ast_hash": "1a03fb9eaafa397489d34a9d783ae725",
+    "semantic_hash": "1a03fb9eaafa397489d34a9d783ae725"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\README.md": {
+    "mtime": 1779865403.8547103,
+    "ast_hash": "3b5e2e624b5115ae051600e3adbdb8e9",
+    "semantic_hash": "3b5e2e624b5115ae051600e3adbdb8e9"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\setup.md": {
+    "mtime": 1779865403.876057,
+    "ast_hash": "6ac15d4dc896363666736dd8871efe4b",
+    "semantic_hash": "6ac15d4dc896363666736dd8871efe4b"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\index.html": {
+    "mtime": 1779865403.8552225,
+    "ast_hash": "175e01da7e3ea8090c45943380a4b124",
+    "semantic_hash": "175e01da7e3ea8090c45943380a4b124"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\assets\\logo.png": {
+    "mtime": 1779865403.8552225,
+    "ast_hash": "31ab943443038fc353d8cfdf058e5741",
+    "semantic_hash": "31ab943443038fc353d8cfdf058e5741"
+  },
+  "C:\\Users\\derri\\OneDrive\\Desktop\\github\\Calendar-AI\\client\\public\\logo.png": {
+    "mtime": 1779865403.8577971,
+    "ast_hash": "31ab943443038fc353d8cfdf058e5741",
+    "semantic_hash": "31ab943443038fc353d8cfdf058e5741"
+  }
+}

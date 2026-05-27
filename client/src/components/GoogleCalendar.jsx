@@ -1,20 +1,74 @@
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
 import MonthView from './MonthView';
 import WeekView from './WeekView';
 import DayView from './DayView';
+import googleCalendarService from '../services/googleCalendar';
 
-const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventClick, onSignOut }) => {
+const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventClick, onSignOut, onDeleteEvent, userCredential }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [view, setView] = useState('month'); // month, week, day
+  const [view, setView] = useState('week'); // month, week, day
+  const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
+  const viewDropdownRef = useRef(null);
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, event }
+  const [deletingId, setDeletingId] = useState(null);
+  const contextMenuRef = useRef(null);
+  const [toast, setToast] = useState(null); // { message, id }
+  const toastTimerRef = useRef(null);
   const [tooltip, setTooltip] = useState({
     visible: false,
     x: 0,
     y: 0,
     content: ''
   });
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (viewDropdownRef.current && !viewDropdownRef.current.contains(e.target)) {
+        setViewDropdownOpen(false);
+      }
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target)) {
+        setContextMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleEventContextMenu = (event, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTooltip({ visible: false, x: 0, y: 0, content: '' });
+    setContextMenu({ x: e.clientX, y: e.clientY, event });
+  };
+
+  const showToast = (message) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, id: Date.now() });
+    toastTimerRef.current = setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleDeleteFromContextMenu = async () => {
+    if (!contextMenu?.event) return;
+    const ev = contextMenu.event;
+    setContextMenu(null);
+    setDeletingId(ev.id);
+    try {
+      if (userCredential?.accessToken) {
+        googleCalendarService.setAccessToken(userCredential.accessToken);
+        await googleCalendarService.deleteEvent(ev.calendarId || 'primary', ev.id);
+      }
+      onDeleteEvent?.(ev.id);
+      showToast(`"${ev.summary || 'Event'}" deleted`);
+    } catch (err) {
+      console.error('Delete error:', err);
+      showToast('Could not delete event');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
@@ -52,13 +106,16 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
       timeRange = 'All day';
     }
     
-    const description = event.description || 'No description';
-    
+    const rawDescription = event.description || '';
+    const description = rawDescription.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/gi, ' ').trim();
+    const location = event.location || '';
+    const lines = [timeRange, location, description].filter(Boolean).join('\n');
+
     setTooltip({
       visible: true,
       x: rect.left + rect.width / 2,
       y: rect.top - 10,
-      content: `${timeRange}\n${description}`
+      content: lines
     });
   };
 
@@ -148,37 +205,31 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
         </div>
 
         <div className="flex items-center space-x-8">
-          <div className="flex bg-gray-100 rounded-xl p-2">
+          <div className="relative" ref={viewDropdownRef}>
             <button
-              onClick={() => setView('month')}
-              className={`px-6 py-3 text-lg font-medium rounded-lg transition-colors ${
-                view === 'month'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              onClick={() => setViewDropdownOpen((o) => !o)}
+              className="flex items-center gap-2 px-5 py-3 text-lg font-medium text-gray-700 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors shadow-sm"
             >
-              Month
+              {view.charAt(0).toUpperCase() + view.slice(1)}
+              <ChevronDown size={18} className={`text-gray-500 transition-transform duration-200 ${viewDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
-            <button
-              onClick={() => setView('week')}
-              className={`px-6 py-3 text-lg font-medium rounded-lg transition-colors ${
-                view === 'week'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Week
-            </button>
-            <button
-              onClick={() => setView('day')}
-              className={`px-6 py-3 text-lg font-medium rounded-lg transition-colors ${
-                view === 'day'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Day
-            </button>
+            {viewDropdownOpen && (
+              <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
+                {['month', 'week', 'day'].map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => { setView(v); setViewDropdownOpen(false); }}
+                    className={`w-full text-left px-5 py-3 text-base font-medium transition-colors ${
+                      view === v
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {onSignOut && (
@@ -239,16 +290,17 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
     return (
       <div
         onClick={(e) => handleEventClick(event, e)}
+        onContextMenu={(e) => handleEventContextMenu(event, e)}
         onMouseEnter={(e) => handleEventMouseEnter(event, e)}
         onMouseLeave={handleEventMouseLeave}
-        className={`${width} ${color.bg} ${color.text} text-base px-2 py-1 mb-1 rounded cursor-pointer hover:opacity-90 transition-opacity`}
+        className={`${width} ${color.bg} ${color.text} text-base px-2 py-1 mb-1 rounded cursor-pointer hover:opacity-90 transition-opacity ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
       >
         <div className="truncate text-base leading-tight font-medium">
           {event.summary}
         </div>
         {event.start?.dateTime && (
           <div className="text-sm text-gray-600 mt-1">
-            {format(new Date(event.start.dateTime), 'HH:mm')}
+            {format(new Date(event.start.dateTime), 'h:mm a')}
           </div>
         )}
       </div>
@@ -261,17 +313,21 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
   const renderContent = () => {
     switch (view) {
       case 'week':
-        return <WeekView 
+        return <WeekView
           currentDate={currentDate}
           events={events}
           handleDateClick={handleDateClick}
           handleEventClick={handleEventClick}
+          handleEventContextMenu={handleEventContextMenu}
+          deletingId={deletingId}
         />;
       case 'day':
-        return <DayView 
+        return <DayView
           currentDate={currentDate}
           events={events}
           handleEventClick={handleEventClick}
+          handleEventContextMenu={handleEventContextMenu}
+          deletingId={deletingId}
         />;
       default:
         return <MonthView 
@@ -322,6 +378,27 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
         {renderContent()}
       </div>
       
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[140px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <div className="px-3 py-1.5 text-xs text-gray-400 font-medium truncate max-w-[180px]">
+            {contextMenu.event.summary || contextMenu.event.title}
+          </div>
+          <hr className="border-gray-100 my-1" />
+          <button
+            onClick={handleDeleteFromContextMenu}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 size={14} />
+            Delete event
+          </button>
+        </div>
+      )}
+
       {/* Custom Tooltip */}
       {tooltip.visible && (
         <div
@@ -339,6 +416,16 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
           <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
         </div>
       )}
+
+      {/* Delete toast notification */}
+      <div
+        className={`fixed bottom-6 left-6 z-50 transition-all duration-300 ${toast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}
+      >
+        <div className="bg-gray-800 text-white text-sm px-4 py-3 rounded-lg shadow-xl flex items-center gap-3">
+          <Trash2 size={14} className="text-gray-300 flex-shrink-0" />
+          <span>{toast?.message}</span>
+        </div>
+      </div>
     </div>
   );
 };
