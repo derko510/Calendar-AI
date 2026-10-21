@@ -1,4 +1,5 @@
 import express from 'express';
+import { generate } from '../services/llm.js';
 import { db } from '../db/connection.js';
 import { calendarEvents, users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -188,21 +189,19 @@ router.post('/chat', async (req, res) => {
   }
 });
 
-// Smart Q&A: frontend sends events + question, backend answers with Ollama
+// Smart Q&A: frontend sends events + question, backend answers with the LLM (Groq or local Ollama)
 router.post('/ask', async (req, res) => {
   try {
     const { message, events = [] } = req.body;
     if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
+    const timeZone = safeTimeZone(req.body.timeZone);
 
-    const { OllamaService } = await import('../services/ollamaService.js');
-    const ollama = new OllamaService();
-
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const today = new Date().toLocaleDateString('en-US', { timeZone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const eventLines = events
       .filter(e => e.startDatetime || e.start?.dateTime || e.start?.date)
       .map(e => {
         const start = new Date(e.startDatetime || e.start?.dateTime || e.start?.date);
-        const t = start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        const t = start.toLocaleString('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
         const loc = e.location ? ` | ${e.location}` : '';
         return `- ${e.summary || e.title || 'Untitled'} | ${t}${loc}`;
       })
@@ -218,25 +217,22 @@ ${eventLines}
 Question: ${message}
 Answer:`;
 
-    const answer = await ollama.generate(prompt, { temperature: 0.3, num_predict: 300 });
+    const answer = await generate(prompt, { temperature: 0.3, maxTokens: 300 });
     res.json({ success: true, message: answer.trim() });
   } catch (err) {
     console.error('Ask endpoint error:', err);
-    res.status(500).json({ success: false, message: 'Could not reach the local AI. Make sure Ollama is running.' });
+    if (err.message === 'rate_limited') return res.status(429).json({ success: false, message: 'rate_limited' });
+    res.status(500).json({ success: false, message: 'Could not reach the AI.' });
   }
 });
 
-// Parse MULTIPLE event creation requests into a JSON array using Ollama
+// Parse MULTIPLE event creation requests into a JSON array using the LLM
 router.post('/parse-events', async (req, res) => {
   try {
     const { message } = req.body;
     if (!message) return res.status(400).json({ success: false });
 
-    const { OllamaService } = await import('../services/ollamaService.js');
-    const ollama = new OllamaService();
-
-    const today = new Date().toISOString().split('T')[0];
-    const year = new Date().getFullYear();
+    const { today, year } = userToday(req.body.timeZone);
 
     const prompt = `Today is ${today}. Extract ALL calendar events mentioned in this message. Respond with ONLY a JSON array, no explanation.
 
@@ -248,7 +244,7 @@ Rules: use ${year} if year not given, 24h time (2pm=14:00), endTime MUST be star
 
 JSON array:`;
 
-    const raw = await ollama.generate(prompt, { temperature: 0.0, num_predict: 500 });
+    const raw = await generate(prompt, { temperature: 0, maxTokens: 500 });
     const jsonMatch = raw.match(/\[[\s\S]*?\]/);
     if (!jsonMatch) return res.status(422).json({ success: false, message: 'Could not parse events.' });
 
@@ -263,17 +259,13 @@ JSON array:`;
   }
 });
 
-// Parse event creation request into structured JSON using Ollama
+// Parse event creation request into structured JSON using the LLM
 router.post('/parse-event', async (req, res) => {
   try {
     const { message } = req.body;
     if (!message) return res.status(400).json({ success: false });
 
-    const { OllamaService } = await import('../services/ollamaService.js');
-    const ollama = new OllamaService();
-
-    const today = new Date().toISOString().split('T')[0];
-    const year = new Date().getFullYear();
+    const { today, year } = userToday(req.body.timeZone);
 
     const prompt = `Today is ${today}. Extract ONE calendar event from this message. Respond with ONLY a JSON object, no explanation.
 
@@ -285,7 +277,7 @@ Rules: use ${year} if year not given, 24h time, endTime MUST be startTime+1hr if
 
 JSON:`;
 
-    const raw = await ollama.generate(prompt, { temperature: 0.0, num_predict: 150 });
+    const raw = await generate(prompt, { temperature: 0, maxTokens: 150 });
     const jsonMatch = raw.match(/\{[\s\S]*?\}/);
     if (!jsonMatch) return res.status(422).json({ success: false, message: 'Could not parse event from that message.' });
 
@@ -299,6 +291,24 @@ JSON:`;
     res.status(500).json({ success: false, message: 'Could not parse event. Try: "Create dentist on June 3 at 2pm".' });
   }
 });
+
+function safeTimeZone(timeZone) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone });
+    return timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+// The server runs in UTC; resolve "today" in the user's own time zone so "tomorrow"/"Friday" land on the right day
+function userToday(timeZone) {
+  const tz = safeTimeZone(timeZone);
+  const now = new Date();
+  const date = now.toLocaleDateString('en-CA', { timeZone: tz });
+  const weekday = now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'long' });
+  return { today: `${weekday}, ${date}`, year: date.slice(0, 4) };
+}
 
 function parseGoogleDateTime(dateTimeObj) {
   if (!dateTimeObj) return null;

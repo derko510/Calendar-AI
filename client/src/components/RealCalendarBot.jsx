@@ -3,6 +3,10 @@ import { ArrowUp, Loader2, Calendar, RefreshCw, Clock, MapPin, Trash2, X } from 
 import googleCalendarService from '../services/googleCalendar';
 import { parseEventText } from '../utils/parseEventText';
 
+// Local dev talks to the local server; the deployed site talks to the deployed one
+const getApiBaseUrl = () =>
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3001' : 'https://server-nu-eight-16.vercel.app');
+
 const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCreated }) => {
   const suggestedPrompts = [
     'What is next on my calendar?',
@@ -51,7 +55,7 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
 
     setIsSyncing(true);
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://server-nu-eight-16.vercel.app';
+      const API_BASE_URL = getApiBaseUrl();
 
       // Extract user info from credential
       const userInfo = {
@@ -266,12 +270,12 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     /\b(create|add|schedule|book|make|set up|new event)\b/.test(text.toLowerCase());
 
   const parseEventsWithAI = async (messageText) => {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE_URL = getApiBaseUrl();
     try {
       const res = await fetch(`${API_BASE_URL}/api/real-calendar/parse-events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageText })
+        body: JSON.stringify({ message: messageText, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || 'Parse failed');
@@ -596,11 +600,11 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
   };
 
   const askAIWithCalendar = async (question) => {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE_URL = getApiBaseUrl();
     const res = await fetch(`${API_BASE_URL}/api/real-calendar/ask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: question, events: events || [] })
+      body: JSON.stringify({ message: question, events: events || [], timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
     });
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.message || 'AI error');
