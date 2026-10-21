@@ -56,7 +56,13 @@ class GoogleCalendarService {
   }
 
   async getAllCalendarEvents(timeMin = null, timeMax = null, maxResults = 250) {
-    const calendars = await this.getCalendarList();
+    // calendarList needs calendar.readonly; older tokens only have calendar.events
+    let calendars;
+    try {
+      calendars = await this.getCalendarList();
+    } catch {
+      calendars = [{ id: 'primary', accessRole: 'owner' }];
+    }
     const writableRoles = new Set(['owner', 'writer']);
     const results = await Promise.allSettled(
       calendars.map(cal => this.getEvents(cal.id, timeMin, timeMax, maxResults).then(evts =>

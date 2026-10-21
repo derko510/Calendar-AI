@@ -27,7 +27,7 @@ const SignIn = ({ onLoginSuccess }) => {
     if (window.google && isGoogleConfigured) {
       tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
         client_id: googleClientId,
-        scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+        scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
         callback: handleTokenResponse,
       });
       setIsGoogleReady(true);

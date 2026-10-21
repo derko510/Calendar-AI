@@ -14,14 +14,14 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     {
       id: 1,
       type: 'bot',
-      content: "Hi, I'm your Calendar AI. I'll sync your events, then you can ask about upcoming plans, past meetings, locations, and people.",
+      content: "Hi, I'm your Calendar AI. Ask about upcoming plans or past meetings, or tell me to schedule something.",
       timestamp: new Date()
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('Not synced');
+  const [syncStatus, setSyncStatus] = useState('');
   const [isSynced, setIsSynced] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingCreate, setPendingCreate] = useState(null);
@@ -76,20 +76,12 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
         const data = await response.json();
         setSyncStatus(`Synced ${data.eventCount} events`);
         setIsSynced(true);
-        
-        const syncMessage = {
-          id: Date.now(),
-          type: 'bot',
-          content: `Synced ${data.eventCount} events from your Google Calendar. Ask me what is next, what changed this week, or where a specific event is happening.`,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, syncMessage]);
       } else {
         throw new Error('Sync failed');
       }
     } catch (error) {
       console.error('Real calendar sync error:', error);
-      setSyncStatus('Sync failed');
+      setSyncStatus('Backend sync unavailable');
     } finally {
       setIsSyncing(false);
     }
@@ -543,18 +535,6 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     const messageText = rawMessage.trim();
     if (!messageText || isLoading) return;
 
-    if (!isSynced) {
-      const errorMessage = {
-        id: Date.now(),
-        type: 'bot',
-        content: 'Please wait for calendar sync to complete before asking questions.',
-        timestamp: new Date(),
-        isError: true
-      };
-      setMessages(prev => [...prev, errorMessage]);
-      return;
-    }
-
     const userMessage = {
       id: Date.now(),
       type: 'user',
@@ -644,43 +624,34 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg border border-gray-200 flex flex-col h-full overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="bg-white text-gray-900 p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold leading-tight">Calendar AI</h3>
-              <p className="text-gray-500 text-sm">Google Calendar assistant</p>
-            </div>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-sm">
+            <Sparkles className="w-4 h-4" />
           </div>
-          <div className={`flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium ${
-            isSynced ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${isSynced ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
-            <span>{isSynced ? 'Synced' : 'Pending'}</span>
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold leading-tight text-gray-900">Calendar AI</h3>
+            <p className="text-xs text-gray-500 truncate">
+              {syncStatus || `${events?.length || 0} events loaded`}
+            </p>
           </div>
         </div>
-      </div>
-
-      {/* Sync Status */}
-      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-3">
-        <span className="text-sm text-gray-600 truncate">{syncStatus}</span>
         <button
           onClick={handleSync}
           disabled={isSyncing}
-          className="flex shrink-0 items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title={isSynced ? 'Synced with backend' : 'Sync with backend'}
+          className="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
+          <span className={`w-1.5 h-1.5 rounded-full ${isSynced ? 'bg-emerald-500' : 'bg-gray-300'}`}></span>
           <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
           {isSyncing ? 'Syncing' : 'Sync'}
         </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-18rem)]">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -820,7 +791,7 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
               key={prompt}
               type="button"
               onClick={() => submitPrompt(prompt)}
-              disabled={!isSynced || isLoading}
+              disabled={isLoading}
               className="shrink-0 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 hover:border-blue-300 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {prompt}
@@ -835,13 +806,13 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isSynced ? "Ask about your calendar..." : "Syncing calendar data..."}
+            placeholder="Ask about your calendar..."
             className="min-w-0 flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={isLoading || !isSynced}
+            disabled={isLoading}
           />
           <button
             type="submit"
-            disabled={isLoading || !input.trim() || !isSynced}
+            disabled={isLoading || !input.trim()}
             className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             aria-label="Send message"
           >

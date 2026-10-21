@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Trash2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
 import MonthView from './MonthView';
 import WeekView from './WeekView';
@@ -10,8 +10,6 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState('week'); // month, week, day
-  const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
-  const viewDropdownRef = useRef(null);
   const [contextMenu, setContextMenu] = useState(null); // { x, y, event }
   const [deletingId, setDeletingId] = useState(null);
   const contextMenuRef = useRef(null);
@@ -26,9 +24,6 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (viewDropdownRef.current && !viewDropdownRef.current.contains(e.target)) {
-        setViewDropdownOpen(false);
-      }
       if (contextMenuRef.current && !contextMenuRef.current.contains(e.target)) {
         setContextMenu(null);
       }
@@ -173,79 +168,58 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
 
   const renderHeader = () => {
     return (
-      <div className="flex items-center justify-between px-12 py-8 border-b border-gray-200 bg-white">
-        <div className="flex items-center space-x-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={goToToday}
-            className="px-8 py-4 text-lg font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Today
           </button>
-          
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={prevPeriod}
-              className="p-4 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <ChevronLeft size={32} className="text-gray-600" />
+          <div className="flex items-center">
+            <button onClick={prevPeriod} aria-label="Previous" className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <ChevronLeft size={20} className="text-gray-600" />
             </button>
-            <button
-              onClick={nextPeriod}
-              className="p-4 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <ChevronRight size={32} className="text-gray-600" />
+            <button onClick={nextPeriod} aria-label="Next" className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <ChevronRight size={20} className="text-gray-600" />
             </button>
           </div>
-
-          <h1 className="text-4xl font-normal text-gray-700">
+          <h1 className="text-xl font-medium text-gray-800 whitespace-nowrap truncate">
             {view === 'month' && format(currentDate, 'MMMM yyyy')}
-            {view === 'week' && `${format(startOfWeek(currentDate), 'MMM d')} - ${format(endOfWeek(currentDate), 'MMM d, yyyy')}`}
+            {view === 'week' && `${format(startOfWeek(currentDate), 'MMM d')} – ${format(endOfWeek(currentDate), 'MMM d, yyyy')}`}
             {view === 'day' && format(currentDate, 'EEEE, MMMM d, yyyy')}
           </h1>
         </div>
 
-        <div className="flex items-center space-x-8">
-          <div className="relative" ref={viewDropdownRef}>
-            <button
-              onClick={() => setViewDropdownOpen((o) => !o)}
-              className="flex items-center gap-2 px-5 py-3 text-lg font-medium text-gray-700 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors shadow-sm"
-            >
-              {view.charAt(0).toUpperCase() + view.slice(1)}
-              <ChevronDown size={18} className={`text-gray-500 transition-transform duration-200 ${viewDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {viewDropdownOpen && (
-              <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
-                {['month', 'week', 'day'].map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => { setView(v); setViewDropdownOpen(false); }}
-                    className={`w-full text-left px-5 py-3 text-base font-medium transition-colors ${
-                      view === v
-                        ? 'bg-gray-100 text-gray-900'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  >
-                    {v.charAt(0).toUpperCase() + v.slice(1)}
-                  </button>
-                ))}
-              </div>
-            )}
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-gray-300 p-0.5 bg-gray-50">
+            {['month', 'week', 'day'].map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  view === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
           </div>
-
           {onSignOut && (
             <button
               onClick={onSignOut}
-              className="inline-flex items-center px-6 py-4 text-lg font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Sign Out"
+              className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Sign out"
+              aria-label="Sign out"
             >
-              <LogOut size={20} className="mr-3" />
-              Sign Out
+              <LogOut size={18} />
             </button>
           )}
         </div>
       </div>
     );
   };
+
 
   const renderDaysOfWeek = () => {
     const days = [];
@@ -371,7 +345,7 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
   }
 
   return (
-    <div className="bg-gray-50 rounded-lg shadow-lg border-2 border-gray-300 w-full h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full h-full flex flex-col overflow-hidden">
       {renderHeader()}
       {view === 'month' && renderDaysOfWeek()}
       <div className="flex-1 overflow-y-auto">
