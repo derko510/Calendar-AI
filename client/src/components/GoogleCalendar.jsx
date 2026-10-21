@@ -1,22 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Trash2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
 import MonthView from './MonthView';
 import WeekView from './WeekView';
 import DayView from './DayView';
 import googleCalendarService from '../services/googleCalendar';
+import { getEventTone } from '../utils/eventColors';
 
 const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventClick, onSignOut, onDeleteEvent, userCredential }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState('week'); // month, week, day
-  const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
-  const viewDropdownRef = useRef(null);
   const [contextMenu, setContextMenu] = useState(null); // { x, y, event }
   const [deletingId, setDeletingId] = useState(null);
   const contextMenuRef = useRef(null);
   const [toast, setToast] = useState(null); // { message, id }
   const toastTimerRef = useRef(null);
+  const scrollRef = useRef(null);
   const [tooltip, setTooltip] = useState({
     visible: false,
     x: 0,
@@ -26,9 +26,6 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (viewDropdownRef.current && !viewDropdownRef.current.contains(e.target)) {
-        setViewDropdownOpen(false);
-      }
       if (contextMenuRef.current && !contextMenuRef.current.contains(e.target)) {
         setContextMenu(null);
       }
@@ -146,100 +143,72 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
     }
   };
 
+  const scrollToNow = () => {
+    // Week grid rows are 64px per hour; keep a couple of hours of context above "now"
+    const hour = new Date().getHours();
+    const top = (hour >= 8 && hour <= 22 ? hour - 2 : 7) * 64;
+    scrollRef.current?.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (view === 'week') scrollToNow();
+  }, [view]);
+
   const goToToday = () => {
     const today = new Date();
     setCurrentDate(today);
     setSelectedDate(today);
     
-    // If in week view, scroll to current time after a short delay
-    if (view === 'week') {
-      setTimeout(() => {
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinutes = now.getMinutes();
-        const currentTimePosition = (currentHour * 64) + (currentMinutes / 60 * 64);
-        
-        // Find the scrollable container and scroll to current time
-        const scrollContainer = document.querySelector('.flex-1.overflow-y-auto');
-        if (scrollContainer) {
-          scrollContainer.scrollTo({
-            top: Math.max(0, currentTimePosition - 200), // Offset to center the red line
-            behavior: 'smooth'
-          });
-        }
-      }, 100); // Small delay to ensure the component has updated
-    }
+    if (view === 'week') scrollToNow();
   };
 
   const renderHeader = () => {
     return (
-      <div className="flex items-center justify-between px-12 py-8 border-b border-gray-200 bg-white">
-        <div className="flex items-center space-x-8">
-          <button
-            onClick={goToToday}
-            className="px-8 py-4 text-lg font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Today
-          </button>
-          
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={prevPeriod}
-              className="p-4 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <ChevronLeft size={32} className="text-gray-600" />
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-line">
+        <div className="flex items-center gap-4 min-w-0">
+          <h1 className="font-serif text-[28px] leading-none text-ink whitespace-nowrap">
+            {view === 'month' && <>{format(currentDate, 'MMMM')} <span className="text-muted">{format(currentDate, 'yyyy')}</span></>}
+            {view === 'week' && <>{format(startOfWeek(currentDate), 'MMM d')} – {format(endOfWeek(currentDate), 'MMM d')}</>}
+            {view === 'day' && <>{format(currentDate, 'EEEE')} <span className="text-muted">{format(currentDate, 'MMM d')}</span></>}
+          </h1>
+          <div className="flex items-center gap-1">
+            <button onClick={prevPeriod} aria-label="Previous" className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-paper transition-colors">
+              <ChevronLeft size={18} />
             </button>
             <button
-              onClick={nextPeriod}
-              className="p-4 hover:bg-gray-100 rounded-full transition-colors"
+              onClick={goToToday}
+              className="px-2.5 py-1 text-sm font-medium text-ink-soft rounded-md hover:bg-paper transition-colors"
             >
-              <ChevronRight size={32} className="text-gray-600" />
+              Today
+            </button>
+            <button onClick={nextPeriod} aria-label="Next" className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-paper transition-colors">
+              <ChevronRight size={18} />
             </button>
           </div>
-
-          <h1 className="text-4xl font-normal text-gray-700">
-            {view === 'month' && format(currentDate, 'MMMM yyyy')}
-            {view === 'week' && `${format(startOfWeek(currentDate), 'MMM d')} - ${format(endOfWeek(currentDate), 'MMM d, yyyy')}`}
-            {view === 'day' && format(currentDate, 'EEEE, MMMM d, yyyy')}
-          </h1>
         </div>
 
-        <div className="flex items-center space-x-8">
-          <div className="relative" ref={viewDropdownRef}>
-            <button
-              onClick={() => setViewDropdownOpen((o) => !o)}
-              className="flex items-center gap-2 px-5 py-3 text-lg font-medium text-gray-700 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors shadow-sm"
-            >
-              {view.charAt(0).toUpperCase() + view.slice(1)}
-              <ChevronDown size={18} className={`text-gray-500 transition-transform duration-200 ${viewDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {viewDropdownOpen && (
-              <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
-                {['month', 'week', 'day'].map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => { setView(v); setViewDropdownOpen(false); }}
-                    className={`w-full text-left px-5 py-3 text-base font-medium transition-colors ${
-                      view === v
-                        ? 'bg-gray-100 text-gray-900'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  >
-                    {v.charAt(0).toUpperCase() + v.slice(1)}
-                  </button>
-                ))}
-              </div>
-            )}
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-full bg-paper p-1">
+            {['month', 'week', 'day'].map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3.5 py-1 text-sm rounded-full transition-colors ${
+                  view === v ? 'bg-surface text-ink font-medium shadow-[0_1px_2px_rgba(29,28,26,0.08)]' : 'text-muted hover:text-ink'
+                }`}
+              >
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
           </div>
-
           {onSignOut && (
             <button
               onClick={onSignOut}
-              className="inline-flex items-center px-6 py-4 text-lg font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Sign Out"
+              className="p-2 text-muted hover:text-ink hover:bg-paper rounded-full transition-colors"
+              title="Sign out"
+              aria-label="Sign out"
             >
-              <LogOut size={20} className="mr-3" />
-              Sign Out
+              <LogOut size={17} />
             </button>
           )}
         </div>
@@ -253,62 +222,32 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
 
     for (let i = 0; i < 7; i++) {
       days.push(
-        <div key={i} className="p-6 text-xl font-medium text-gray-500 text-center border-r border-gray-200 last:border-r-0 h-24 flex items-center justify-center">
-          {format(addDays(startDay, i), 'EEEE').toUpperCase()}
+        <div key={i} className="px-3 py-2.5 text-xs font-medium uppercase tracking-[0.08em] text-muted border-r border-line last:border-r-0">
+          {format(addDays(startDay, i), 'EEE')}
         </div>
       );
     }
 
-    return <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50">{days}</div>;
+    return <div className="grid grid-cols-7 border-b border-line">{days}</div>;
   };
 
   const renderEventBar = (event, width = 'w-full') => {
-    const colors = [
-      { bg: 'bg-blue-500', text: 'text-white' },
-      { bg: 'bg-green-500', text: 'text-white' }, 
-      { bg: 'bg-purple-500', text: 'text-white' },
-      { bg: 'bg-red-500', text: 'text-white' },
-      { bg: 'bg-yellow-400', text: 'text-gray-900' },
-      { bg: 'bg-indigo-500', text: 'text-white' },
-      { bg: 'bg-pink-500', text: 'text-white' },
-      { bg: 'bg-orange-500', text: 'text-white' }
-    ];
-    
-    // Safe color index calculation
-    let colorIndex = 0;
-    if (event.id && typeof event.id === 'string' && event.id.length > 0) {
-      const lastChar = event.id.slice(-1);
-      const parsedIndex = parseInt(lastChar);
-      colorIndex = isNaN(parsedIndex) ? 0 : parsedIndex % colors.length;
-    } else if (event.summary) {
-      // Fallback: use summary hash if no ID
-      colorIndex = event.summary.length % colors.length;
-    }
-    
-    const color = colors[colorIndex];
-
+    const tone = getEventTone(event);
     return (
       <div
         onClick={(e) => handleEventClick(event, e)}
         onContextMenu={(e) => handleEventContextMenu(event, e)}
         onMouseEnter={(e) => handleEventMouseEnter(event, e)}
         onMouseLeave={handleEventMouseLeave}
-        className={`${width} ${color.bg} ${color.text} text-base px-2 py-1 mb-1 rounded cursor-pointer hover:opacity-90 transition-opacity ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
+        className={`${width} ${tone.block} flex items-baseline gap-1.5 border-l-2 rounded-[4px] px-1.5 py-0.5 text-xs cursor-pointer hover:brightness-[0.97] transition ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
       >
-        <div className="truncate text-base leading-tight font-medium">
-          {event.summary}
-        </div>
         {event.start?.dateTime && (
-          <div className="text-sm text-gray-600 mt-1">
-            {format(new Date(event.start.dateTime), 'h:mm a')}
-          </div>
+          <span className="shrink-0 opacity-70">{format(new Date(event.start.dateTime), 'h:mmaaaaa')}</span>
         )}
+        <span className="truncate font-medium">{event.summary}</span>
       </div>
     );
   };
-
-
-
 
   const renderContent = () => {
     switch (view) {
@@ -346,35 +285,24 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
 
   if (loading) {
     return (
-      <div className="bg-white h-screen">
-        <div className="animate-pulse">
-          <div className="h-32 bg-gray-200 border-b border-gray-200"></div>
-          <div className="grid grid-cols-7 h-20 border-b border-gray-200">
-            {Array(7).fill(0).map((_, i) => (
-              <div key={i} className="bg-gray-100 border-r border-gray-200"></div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 h-[48rem]">
-            {Array(35).fill(0).map((_, i) => (
-              <div key={i} className="bg-gray-50 border-r border-b border-gray-200 p-4">
-                <div className="w-12 h-12 bg-gray-200 rounded mb-4"></div>
-                <div className="space-y-2">
-                  <div className="h-8 bg-gray-200 rounded w-full"></div>
-                  <div className="h-8 bg-gray-200 rounded w-3/4"></div>
-                </div>
-              </div>
-            ))}
-          </div>
+      <div className="bg-surface rounded-2xl border border-line h-full animate-pulse">
+        <div className="h-16 border-b border-line" />
+        <div className="grid grid-cols-7 h-[calc(100%-4rem)]">
+          {Array(35).fill(0).map((_, i) => (
+            <div key={i} className="border-r border-b border-line p-3">
+              <div className="w-6 h-4 bg-paper rounded" />
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-50 rounded-lg shadow-lg border-2 border-gray-300 w-full h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
+    <div className="bg-surface rounded-2xl border border-line w-full h-full flex flex-col overflow-hidden">
       {renderHeader()}
       {view === 'month' && renderDaysOfWeek()}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-quiet">
         {renderContent()}
       </div>
       
@@ -382,16 +310,16 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[140px]"
+          className="fixed z-50 bg-surface rounded-lg shadow-[0_8px_24px_-8px_rgba(29,28,26,0.25)] border border-line py-1 min-w-[160px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <div className="px-3 py-1.5 text-xs text-gray-400 font-medium truncate max-w-[180px]">
+          <div className="px-3 py-1.5 text-xs text-muted font-medium truncate max-w-[200px]">
             {contextMenu.event.summary || contextMenu.event.title}
           </div>
-          <hr className="border-gray-100 my-1" />
+          <hr className="border-line my-1" />
           <button
             onClick={handleDeleteFromContextMenu}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-accent hover:bg-accent-soft transition-colors"
           >
             <Trash2 size={14} />
             Delete event
@@ -402,7 +330,7 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
       {/* Custom Tooltip */}
       {tooltip.visible && (
         <div
-          className="fixed bg-gray-900 text-white text-xs p-3 rounded-lg shadow-lg z-50 max-w-xs pointer-events-none"
+          className="fixed bg-ink text-paper text-xs px-3 py-2 rounded-md shadow-lg z-50 max-w-xs pointer-events-none"
           style={{
             left: `${tooltip.x}px`,
             top: `${tooltip.y}px`,
@@ -413,7 +341,7 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
             {tooltip.content}
           </div>
           {/* Tooltip arrow */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-ink"></div>
         </div>
       )}
 
@@ -421,8 +349,8 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
       <div
         className={`fixed bottom-6 left-6 z-50 transition-all duration-300 ${toast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}
       >
-        <div className="bg-gray-800 text-white text-sm px-4 py-3 rounded-lg shadow-xl flex items-center gap-3">
-          <Trash2 size={14} className="text-gray-300 flex-shrink-0" />
+        <div className="bg-ink text-paper text-sm px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2.5">
+          <Trash2 size={14} className="opacity-60 flex-shrink-0" />
           <span>{toast?.message}</span>
         </div>
       </div>

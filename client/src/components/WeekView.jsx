@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {format,startOfWeek,addDays,startOfDay,setHours,isToday} from 'date-fns';
+import { getEventTone } from '../utils/eventColors';
 
 /**
  * WeekView displays a 7-day week grid with time slots from 0-23.
@@ -48,20 +49,6 @@ const WeekView = ({
    */
   const getHours = () => {
     return Array.from({length: 24}, (_, i) => i);
-  };
-
-  /**
-   * Determines background color for event based on its ID hash.
-   * @param {string} eventId - The unique identifier for the event.
-   * @returns {string} CSS background color class name.
-   */
-  const getEventColor = (eventId) => {
-    const colors = [
-      'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-red-500',
-      'bg-yellow-500', 'bg-indigo-500', 'bg-pink-500', 'bg-gray-500'
-    ];
-    const hash = eventId.charCodeAt(eventId.length - 1) || 0;
-    return colors[hash % colors.length];
   };
 
   /**
@@ -175,115 +162,107 @@ const WeekView = ({
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
-      {/* Fixed header with weekdays */}
-      <div className="flex border-b border-gray-300 bg-gray-50 sticky top-0 z-30">
-        <div className="w-16 flex-shrink-0 border-r border-gray-300 bg-gray-50 flex items-center justify-center">
-          <span className="text-xs text-gray-500 font-medium">Time</span>
-        </div>
-        {weekdays.map((weekday, index) => (
-          <div key={weekday} className="flex-1 border-r border-gray-200 last:border-r-0 relative">
-            <div className="p-3 text-center">
-              <div className="text-sm font-semibold text-gray-900">{weekday}</div>
-              <div className="text-xs text-gray-500 mt-1">
-                {format(weekDays[index], 'MMM d')}
+    <div className="min-h-full flex flex-col">
+      {/* Weekday header */}
+      <div className="flex border-b border-line bg-surface sticky top-0 z-30">
+        <div className="w-11 sm:w-14 flex-shrink-0" />
+        {weekdays.map((weekday, index) => {
+          const isTodayCol = isToday(weekDays[index]);
+          return (
+            <div key={weekday} className="flex-1 min-w-0 border-l border-line">
+              <div className="px-1 sm:px-2 pt-2.5 pb-2 flex flex-col sm:flex-row items-center sm:items-baseline gap-0.5 sm:gap-1.5">
+                <span className={`text-[10px] sm:text-[11px] uppercase tracking-[0.08em] ${isTodayCol ? 'text-accent font-semibold' : 'text-muted'}`}>
+                  <span className="sm:hidden">{weekday.slice(0, 1)}</span><span className="hidden sm:inline">{weekday.slice(0, 3)}</span>
+                </span>
+                <span className={`font-serif text-xl sm:text-2xl leading-none ${isTodayCol ? 'text-accent' : 'text-ink'}`}>
+                  {format(weekDays[index], 'd')}
+                </span>
+              </div>
+
+              {/* All-day events */}
+              <div className="px-1 pb-1.5 space-y-0.5">
+                {getEventsForDate(weekDays[index])
+                  .filter(event => !event.start?.dateTime)
+                  .map((event, eventIndex) => (
+                    <div
+                      key={`${event.id}-${eventIndex}`}
+                      className={`${getEventTone(event).block} border-l-2 text-[11px] font-medium px-1.5 py-0.5 rounded-[4px] truncate cursor-pointer hover:brightness-[0.97] transition ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
+                      onClick={(e) => handleEventClickInternal(event, e)}
+                      onContextMenu={(e) => handleEventContextMenu?.(event, e)}
+                      onMouseEnter={(e) => handleEventMouseEnter(event, e)}
+                      onMouseLeave={handleEventMouseLeave}
+                    >
+                      {event.summary}
+                    </div>
+                  ))}
               </div>
             </div>
-            
-            {/* All-day events in header */}
-            <div className="px-1 pb-2 space-y-1">
-              {getEventsForDate(weekDays[index])
-                .filter(event => !event.start?.dateTime)
-                .map((event, eventIndex) => (
-                  <div
-                    key={`${event.id}-${eventIndex}`}
-                    className={`bg-blue-500 text-white text-xs p-1 rounded truncate cursor-pointer hover:bg-blue-600 transition-colors ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
-                    onClick={(e) => handleEventClickInternal(event, e)}
-                    onContextMenu={(e) => handleEventContextMenu?.(event, e)}
-                    onMouseEnter={(e) => handleEventMouseEnter(event, e)}
-                    onMouseLeave={handleEventMouseLeave}
-                  >
-                    {event.summary}
-                  </div>
-                ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Time grid with full page scroll */}
-      <div className="flex-1 bg-gray-50">
-        <div className="flex bg-gray-50">
-          {/* Time labels column */}
-          <div className="w-16 flex-shrink-0 border-r border-gray-300 bg-gray-50">
+      {/* Time grid */}
+      <div className="flex-1">
+        <div className="flex">
+          <div className="w-11 sm:w-14 flex-shrink-0">
             {hours.map(h => (
-              <div
-                key={h}
-                className="h-16 flex items-center justify-center border-b border-gray-200 text-xs text-gray-600 font-medium"
-              >
-                {format(setHours(startOfDay(currentDate), h), 'ha')}
+              <div key={h} className="h-16 pr-2 text-right text-[11px] text-muted -translate-y-1.5">
+                {h === 0 ? '' : format(setHours(startOfDay(currentDate), h), 'h a')}
               </div>
             ))}
           </div>
 
-          {/* Day columns */}
           {weekDays.map((date, dayIndex) => {
             const dayEvents = getEventsForDate(date);
             const isTodayDate = isToday(date);
-            
+
             return (
               <div
                 key={`day-${dayIndex}`}
-                className="flex-1 border-r border-gray-200 last:border-r-0 relative bg-gray-50"
+                className={`flex-1 min-w-0 border-l border-line relative ${isTodayDate ? 'bg-accent-soft/25' : ''}`}
               >
                 {hours.map(h => (
                   <div
                     key={h}
-                    className="h-16 border-b border-gray-200 cursor-pointer hover:bg-gray-100 relative bg-gray-50"
+                    className="h-16 border-b border-line/70 cursor-pointer hover:bg-paper/70 transition-colors"
                     onClick={() => handleDateClick(setHours(date, h))}
                     title={getCellTitle(date, h)}
                   />
                 ))}
-                
-                {/* Current time line - only show for today */}
+
                 {isTodayDate && (
                   <div
-                    className="absolute left-0 right-0 h-0.5 bg-red-500 z-20"
-                    style={{top: `${currentTimePosition}px`}}
+                    className="absolute left-0 right-0 h-px bg-accent z-20 pointer-events-none"
+                    style={{ top: `${currentTimePosition}px` }}
                   >
-                    <div className="absolute left-0 w-2 h-2 bg-red-500 rounded-full -mt-0.75"></div>
+                    <div className="absolute -left-1 -top-[3.5px] w-2 h-2 bg-accent rounded-full" />
                   </div>
                 )}
-                
-                {/* Render timed events for this day */}
+
                 {dayEvents
                   .filter(event => event.start?.dateTime)
                   .map((event, eventIndex) => {
                     const eventStart = new Date(event.start.dateTime);
                     const eventEnd = event.end?.dateTime ? new Date(event.end.dateTime) : new Date(eventStart.getTime() + 60 * 60 * 1000);
                     const position = calculateEventPosition(eventStart, eventEnd);
-                    const colorClass = getEventColor(event.id);
-                    
+                    const tone = getEventTone(event);
+
                     return (
                       <div
                         key={`${event.id}-${eventIndex}`}
-                        className={`absolute left-1 right-1 ${colorClass} text-white text-xs p-1 rounded z-10 cursor-pointer hover:opacity-90 transition-opacity ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
+                        className={`absolute left-0.5 right-1 ${tone.block} border-l-2 text-[11px] leading-tight px-1.5 py-1 rounded-[5px] z-10 overflow-hidden cursor-pointer hover:brightness-[0.97] transition ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
                         style={{
-                          top: `${position.top}px`,
-                          height: `${position.height}px`
+                          top: `${position.top + 1}px`,
+                          height: `${Math.max(position.height - 2, 18)}px`
                         }}
                         onClick={(e) => handleEventClickInternal(event, e)}
                         onContextMenu={(e) => handleEventContextMenu?.(event, e)}
                         onMouseEnter={(e) => handleEventMouseEnter(event, e)}
                         onMouseLeave={handleEventMouseLeave}
-                        aria-label={`${event.summary} from ${format(eventStart, 'h:mm a')} to ${format(eventEnd, 'HH:mm')}`}
+                        aria-label={`${event.summary} from ${format(eventStart, 'h:mm a')} to ${format(eventEnd, 'h:mm a')}`}
                       >
-                        <div className="font-medium truncate">
-                          {event.summary}
-                        </div>
-                        <div className="opacity-90">
-                          {format(eventStart, 'h:mm a')}
-                        </div>
+                        <div className="font-semibold truncate">{event.summary}</div>
+                        <div className="opacity-70">{format(eventStart, 'h:mm a')}</div>
                       </div>
                     );
                   })}
@@ -292,11 +271,11 @@ const WeekView = ({
           })}
         </div>
       </div>
-      
+
       {/* Custom Tooltip */}
       {tooltip.visible && (
         <div
-          className="fixed bg-gray-900 text-white text-xs p-3 rounded-lg shadow-lg z-50 max-w-xs pointer-events-none"
+          className="fixed bg-ink text-paper text-xs px-3 py-2 rounded-md shadow-lg z-50 max-w-xs pointer-events-none"
           style={{
             left: `${tooltip.x}px`,
             top: `${tooltip.y}px`,
@@ -307,7 +286,7 @@ const WeekView = ({
             {tooltip.content}
           </div>
           {/* Tooltip arrow */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-ink"></div>
         </div>
       )}
     </div>

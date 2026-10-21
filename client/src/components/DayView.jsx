@@ -1,5 +1,6 @@
 import { format, isToday } from 'date-fns';
 import { getEventsForDate } from '../utils/dateUtils';
+import { getEventTone } from '../utils/eventColors';
 
 const DayView = ({
   currentDate,
@@ -13,51 +14,51 @@ const DayView = ({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-6 border-b border-gray-200 bg-gray-50 h-28 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-xl text-gray-500 font-medium mb-2">
-            {format(currentDate, 'EEEE').toUpperCase()}
-          </div>
-          <div className={`inline-flex items-center justify-center w-16 h-16 text-2xl ${
-            isTodayDate
-              ? 'bg-blue-600 text-white rounded-full font-medium'
-              : 'text-gray-900 font-normal'
-          }`}>
-            {format(currentDate, 'd')}
-          </div>
-        </div>
+      <div className="px-6 py-5 border-b border-line flex items-baseline gap-3">
+        <span className={`font-serif text-5xl leading-none ${isTodayDate ? 'text-accent' : 'text-ink'}`}>
+          {format(currentDate, 'd')}
+        </span>
+        <span className="text-sm text-muted">
+          {format(currentDate, 'EEEE, MMMM yyyy')}{isTodayDate ? ' · Today' : ''}
+        </span>
       </div>
-      <div className="flex-1 p-8 space-y-4 overflow-auto">
+      <div className="flex-1 px-6 py-4 overflow-auto scroll-quiet">
         {dayEvents.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-gray-500">
-              <p className="text-xl">No events scheduled</p>
-            </div>
+          <div className="h-full flex items-center justify-center">
+            <p className="font-serif italic text-2xl text-muted">Nothing planned.</p>
           </div>
         ) : (
-          dayEvents.map((event, index) => (
-            <div key={`${event.id}-${index}`} className="mb-4">
-              <div
-                className={`flex items-start space-x-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
-                onClick={(e) => handleEventClick(event, e)}
-                onContextMenu={(e) => handleEventContextMenu?.(event, e)}
-              >
-                <div className="text-lg text-gray-600 font-medium min-w-[120px]">
-                  {event.start?.dateTime ? format(new Date(event.start.dateTime), 'h:mm a') : 'All day'}
-                </div>
-                <div className="flex-1">
-                  <div className="text-xl font-medium text-gray-900 mb-1">
-                    {event.summary}
+          <ul className="divide-y divide-line">
+            {dayEvents.map((event, index) => {
+              const tone = getEventTone(event);
+              return (
+                <li
+                  key={`${event.id}-${index}`}
+                  className={`group flex items-start gap-5 py-4 cursor-pointer ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
+                  onClick={(e) => handleEventClick(event, e)}
+                  onContextMenu={(e) => handleEventContextMenu?.(event, e)}
+                >
+                  <div className="w-20 shrink-0 pt-0.5 text-sm text-muted">
+                    {event.start?.dateTime ? format(new Date(event.start.dateTime), 'h:mm a') : 'All day'}
                   </div>
-                  {event.description && (
-                    <div className="text-lg text-gray-600">
-                      {event.description}
+                  <span className={`mt-2 w-2 h-2 rounded-full shrink-0 ${tone.dot}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[15px] font-medium text-ink group-hover:underline underline-offset-4 decoration-line">
+                      {event.summary}
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
+                    {event.location && (
+                      <div className="mt-0.5 text-sm text-muted truncate">{event.location}</div>
+                    )}
+                    {event.description && (
+                      <div className="mt-1 text-sm text-ink-soft/80 line-clamp-2">
+                        {event.description.replace(/<[^>]*>/g, ' ')}
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
     </div>

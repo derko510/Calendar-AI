@@ -25,15 +25,6 @@ const MonthView = ({
       totalRows++;
     }
 
-    // Determine cell height based on number of rows
-    const getRowHeight = () => {
-      if (totalRows <= 5) return 'h-40'; // Standard height for 5 rows or less (160px)
-      if (totalRows === 6) return 'h-32'; // Smaller for 6 rows (128px)
-      return 'h-28'; // Smallest for more rows (112px)
-    };
-
-    const rowHeight = getRowHeight();
-
     while (day <= endDate) {
       for (let i = 0; i < 7; i++) {
         const cloneDay = day;
@@ -42,39 +33,35 @@ const MonthView = ({
         const isSelected = isSameDay(day, selectedDate);
         const isTodayDate = isToday(day);
 
+        const maxVisible = totalRows > 5 ? 2 : 3;
+
         days.push(
           <div
             key={day}
-            className={`relative ${rowHeight} p-4 border-r border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden ${
-              !isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'bg-white'
-            } ${isSelected ? 'bg-blue-50' : ''}`}
+            className={`relative min-h-0 p-1.5 border-r border-b border-line last:border-r-0 cursor-pointer transition-colors overflow-hidden ${
+              isSelected ? 'bg-paper' : 'hover:bg-paper/60'
+            }`}
             onClick={() => handleDateClick(cloneDay)}
           >
-            <div className={`inline-flex items-center justify-center ${
-              totalRows > 5 ? 'w-10 h-10 text-lg' : 'w-14 h-14 text-xl'
-            } ${
+            <div className={`ml-0.5 mb-1 inline-flex items-center justify-center h-6 min-w-6 px-1 text-[13px] rounded-full ${
               isTodayDate
-                ? 'bg-blue-600 text-white rounded-full font-medium'
-                : isSelected
-                ? 'bg-blue-100 text-blue-600 rounded-full font-medium'
+                ? 'bg-accent text-white font-semibold'
                 : isCurrentMonth
-                ? 'text-gray-900'
-                : 'text-gray-400'
+                ? 'text-ink'
+                : 'text-muted/50'
             }`}>
               {format(day, dayFormat)}
             </div>
 
-            <div className={`${totalRows > 5 ? 'mt-2 space-y-1' : 'mt-3 space-y-2'} overflow-hidden`}>
-              {dayEvents.slice(0, totalRows > 5 ? 1 : 2).map((event, index) => (
-                <div key={`${event.id}-${index}`} className="text-xs">
+            <div className="space-y-0.5">
+              {dayEvents.slice(0, maxVisible).map((event, index) => (
+                <div key={`${event.id}-${index}`}>
                   {renderEventBar(event, 'w-full')}
                 </div>
               ))}
-              {dayEvents.length > (totalRows > 5 ? 1 : 2) && (
-                <div className={`${
-                  totalRows > 5 ? 'text-xs' : 'text-sm'
-                } text-gray-700 px-1 py-1 bg-gray-100 rounded text-center font-medium`}>
-                  +{dayEvents.length - (totalRows > 5 ? 1 : 2)}
+              {dayEvents.length > maxVisible && (
+                <div className="px-1.5 text-[11px] text-muted">
+                  {dayEvents.length - maxVisible} more
                 </div>
               )}
             </div>
@@ -83,14 +70,14 @@ const MonthView = ({
         day = addDays(day, 1);
       }
       rows.push(
-        <div key={day} className="grid grid-cols-7">
+        <div key={day} className="grid grid-cols-7 flex-1 min-h-[96px]">
           {days}
         </div>
       );
       days = [];
     }
 
-    return <div className="h-full overflow-hidden">{rows}</div>;
+    return <div className="h-full flex flex-col">{rows}</div>;
   };
 
   return renderMonthView();

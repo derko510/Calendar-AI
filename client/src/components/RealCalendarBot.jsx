@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Loader2, Calendar, RefreshCw, Sparkles, Clock, MapPin, Trash2, X } from 'lucide-react';
+import { ArrowUp, Loader2, Calendar, RefreshCw, Clock, MapPin, Trash2, X } from 'lucide-react';
 import googleCalendarService from '../services/googleCalendar';
+import { parseEventText } from '../utils/parseEventText';
 
 const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCreated }) => {
   const suggestedPrompts = [
@@ -14,14 +15,14 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     {
       id: 1,
       type: 'bot',
-      content: "Hi, I'm your Calendar AI. I'll sync your events, then you can ask about upcoming plans, past meetings, locations, and people.",
+      content: "Ask about what's coming up or what already happened. Or type a plan, like “gym Friday at 6pm”, and I'll add it.",
       timestamp: new Date()
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('Not synced');
+  const [syncStatus, setSyncStatus] = useState('');
   const [isSynced, setIsSynced] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingCreate, setPendingCreate] = useState(null);
@@ -76,20 +77,12 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
         const data = await response.json();
         setSyncStatus(`Synced ${data.eventCount} events`);
         setIsSynced(true);
-        
-        const syncMessage = {
-          id: Date.now(),
-          type: 'bot',
-          content: `Synced ${data.eventCount} events from your Google Calendar. Ask me what is next, what changed this week, or where a specific event is happening.`,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, syncMessage]);
       } else {
         throw new Error('Sync failed');
       }
     } catch (error) {
       console.error('Real calendar sync error:', error);
-      setSyncStatus('Sync failed');
+      setSyncStatus('');
     } finally {
       setIsSyncing(false);
     }
@@ -274,14 +267,29 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
 
   const parseEventsWithAI = async (messageText) => {
     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    const res = await fetch(`${API_BASE_URL}/api/real-calendar/parse-events`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: messageText })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.message || 'Parse failed');
-    return data.events; // array
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/real-calendar/parse-events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageText })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Parse failed');
+      return data.events; // array
+    } catch (err) {
+      // AI backend unreachable (e.g. deployed without Ollama) — fall back to the local parser
+      const local = parseEventText(messageText);
+      if (!local) throw err;
+      return [local];
+    }
+  };
+
+  // Local wall-clock "YYYY-MM-DDTHH:MM:SS" + 1h (toISOString would shift it to UTC)
+  const addOneHour = (localISO) => {
+    const d = new Date(localISO);
+    d.setHours(d.getHours() + 1);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
   };
 
   const queueCreateConfirmation = async (messageText) => {
@@ -300,14 +308,10 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
           if (diffHrs > 0 && diffHrs <= 4) {
             endISO = `${parsed.date}T${parsed.endTime}:00`;
           } else {
-            const d = new Date(startISO);
-            d.setHours(d.getHours() + 1);
-            endISO = d.toISOString().slice(0, 19);
+            endISO = addOneHour(startISO);
           }
         } else {
-          const d = new Date(startISO);
-          d.setHours(d.getHours() + 1);
-          endISO = d.toISOString().slice(0, 19);
+          endISO = addOneHour(startISO);
         }
         return { parsed, startISO, endISO };
       });
@@ -543,18 +547,6 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     const messageText = rawMessage.trim();
     if (!messageText || isLoading) return;
 
-    if (!isSynced) {
-      const errorMessage = {
-        id: Date.now(),
-        type: 'bot',
-        content: 'Please wait for calendar sync to complete before asking questions.',
-        timestamp: new Date(),
-        isError: true
-      };
-      setMessages(prev => [...prev, errorMessage]);
-      return;
-    }
-
     const userMessage = {
       id: Date.now(),
       type: 'user',
@@ -621,7 +613,7 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
   };
 
   const formatTime = (date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   };
 
   const formatEventTime = (event) => {
@@ -644,63 +636,48 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg border border-gray-200 flex flex-col h-full overflow-hidden">
+    <div className="bg-surface rounded-2xl border border-line flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="bg-white text-gray-900 p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold leading-tight">Calendar AI</h3>
-              <p className="text-gray-500 text-sm">Google Calendar assistant</p>
-            </div>
-          </div>
-          <div className={`flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium ${
-            isSynced ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${isSynced ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
-            <span>{isSynced ? 'Synced' : 'Pending'}</span>
+      <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-line">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="min-w-0">
+            <h3 className="font-serif text-[26px] leading-none text-ink">Ask</h3>
+            <p className="mt-1 text-xs text-muted truncate">
+              {syncStatus || `${events?.length || 0} events loaded`}
+            </p>
           </div>
         </div>
-      </div>
-
-      {/* Sync Status */}
-      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-3">
-        <span className="text-sm text-gray-600 truncate">{syncStatus}</span>
         <button
           onClick={handleSync}
           disabled={isSyncing}
-          className="flex shrink-0 items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title={isSynced ? 'Synced with backend' : 'Sync with backend'}
+          className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs text-muted hover:text-ink hover:bg-paper disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
+          <span className={`w-1.5 h-1.5 rounded-full ${isSynced ? 'bg-[#6E8F68]' : 'bg-line'}`}></span>
           <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
           {isSyncing ? 'Syncing' : 'Sync'}
         </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-18rem)]">
+      <div className="flex-1 min-h-0 overflow-y-auto scroll-quiet px-5 py-5 space-y-5">
         {messages.map((message) => (
           <div
             key={message.id}
             className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] rounded-2xl p-3 ${
+              className={`${
                 message.type === 'user'
-                  ? 'bg-blue-600 text-white'
+                  ? 'max-w-[85%] rounded-2xl rounded-br-md bg-ink text-paper px-3.5 py-2.5'
                   : message.isError
-                  ? 'bg-red-50 border border-red-200 text-red-800'
-                  : 'bg-gray-100 text-gray-800'
+                  ? 'max-w-[92%] border-l-2 border-accent pl-3 text-ink-soft'
+                  : 'max-w-[92%] text-ink'
               }`}
             >
               <div className="flex items-start gap-2">
-                {message.type === 'bot' && (
-                  <Bot className={`w-4 h-4 mt-1 flex-shrink-0 ${message.isError ? 'text-red-500' : 'text-gray-500'}`} />
-                )}
                 <div className="flex-1">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  <p className="text-[14.5px] leading-relaxed whitespace-pre-wrap">
                     {message.content}
                   </p>
                   {message.events?.length > 0 && (
@@ -708,17 +685,17 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
                       {message.events.slice(0, 3).map((event) => (
                         <div
                           key={event.id || event.googleEventId}
-                          className="rounded-md border border-gray-200 bg-white px-3 py-2 text-gray-700"
+                          className="rounded-lg border border-line bg-paper/60 px-3 py-2 text-ink-soft"
                         >
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-medium text-ink">
                             {event.title || event.summary || 'Untitled event'}
                           </p>
-                          <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+                          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted">
                             <Clock className="w-3 h-3" />
                             <span>{formatEventTime(event)}</span>
                           </div>
                           {event.location && (
-                            <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+                            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted">
                               <MapPin className="w-3 h-3" />
                               <span className="truncate">{event.location}</span>
                             </div>
@@ -729,13 +706,13 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
                   )}
                   {message.action?.type === 'confirmCreate' && (
                     <div className="mt-3 space-y-2">
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs text-gray-700 space-y-2">
+                      <div className="rounded-lg border border-line bg-paper/60 p-3 text-xs text-ink-soft space-y-2">
                         {(message.action.events || []).map((item, i) => (
-                          <div key={i} className={`space-y-0.5 ${i > 0 ? 'pt-2 border-t border-gray-200' : ''}`}>
-                            <div className="font-semibold text-gray-900">{item.parsed.title}</div>
-                            <div className="text-gray-600">{new Date(item.startISO).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} – {new Date(item.endISO).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</div>
-                            {item.parsed.location && <div className="text-gray-500">📍 {item.parsed.location}</div>}
-                            {item.parsed.description && <div className="text-gray-400 italic">{item.parsed.description}</div>}
+                          <div key={i} className={`space-y-0.5 ${i > 0 ? 'pt-2 border-t border-line' : ''}`}>
+                            <div className="text-sm font-medium text-ink">{item.parsed.title}</div>
+                            <div className="text-muted">{new Date(item.startISO).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} – {new Date(item.endISO).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</div>
+                            {item.parsed.location && <div className="text-muted">{item.parsed.location}</div>}
+                            {item.parsed.description && <div className="text-muted italic">{item.parsed.description}</div>}
                           </div>
                         ))}
                       </div>
@@ -744,16 +721,16 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
                           type="button"
                           onClick={() => confirmCreateEvent(message.action.id)}
                           disabled={!pendingCreate || pendingCreate.id !== message.action.id || isLoading}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-1.5 text-xs font-medium text-paper hover:bg-ink-soft disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Calendar className="w-3 h-3" />
-                          Create Event
+                          Add to calendar
                         </button>
                         <button
                           type="button"
                           onClick={() => cancelCreateEvent(message.action.id)}
                           disabled={!pendingCreate || pendingCreate.id !== message.action.id || isLoading}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-ink-soft hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <X className="w-3 h-3" />
                           Cancel
@@ -767,7 +744,7 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
                         type="button"
                         onClick={() => confirmDeleteEvents(message.action.id)}
                         disabled={!pendingDelete || pendingDelete.id !== message.action.id || isLoading}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-xs font-medium text-white hover:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Trash2 className="w-3 h-3" />
                         Delete
@@ -776,20 +753,17 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
                         type="button"
                         onClick={() => cancelDeleteEvents(message.action.id)}
                         disabled={!pendingDelete || pendingDelete.id !== message.action.id || isLoading}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-ink-soft hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <X className="w-3 h-3" />
                         Cancel
                       </button>
                     </div>
                   )}
-                  <p className={`text-xs mt-1 opacity-70 ${message.type === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
+                  <p className={`text-[11px] mt-1 ${message.type === 'user' ? 'text-paper/50' : 'text-muted/80'}`}>
                     {formatTime(message.timestamp)}
                   </p>
                 </div>
-                {message.type === 'user' && (
-                  <User className="w-4 h-4 mt-1 flex-shrink-0 text-blue-100" />
-                )}
               </div>
             </div>
           </div>
@@ -797,14 +771,9 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
         
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-2xl p-3 max-w-[80%]">
-              <div className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-gray-500" />
-                <div className="flex items-center gap-1">
-                  <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-                  <span className="text-sm text-gray-600">Searching your calendar...</span>
-                </div>
-              </div>
+            <div className="flex items-center gap-2 text-sm text-muted">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Looking through your calendar…</span>
             </div>
           </div>
         )}
@@ -813,15 +782,15 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
       </div>
 
       {/* Input */}
-      <div className="px-4 pt-3 border-t border-gray-200">
-        <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="px-5 pt-3 border-t border-line">
+        <div className="flex gap-1.5 overflow-x-auto scroll-quiet pb-2">
           {suggestedPrompts.map((prompt) => (
             <button
               key={prompt}
               type="button"
               onClick={() => submitPrompt(prompt)}
-              disabled={!isSynced || isLoading}
-              className="shrink-0 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 hover:border-blue-300 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading}
+              className="shrink-0 rounded-full border border-line px-3 py-1 text-xs text-ink-soft hover:bg-paper hover:border-[#D6CFC2] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {prompt}
             </button>
@@ -829,28 +798,24 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
         </div>
       </div>
 
-      <form id="calendar-ai-chat-form" onSubmit={handleSubmit} className="p-4 pt-2">
-        <div className="flex gap-2">
+      <form id="calendar-ai-chat-form" onSubmit={handleSubmit} className="px-5 pb-5 pt-1">
+        <div className="flex items-center gap-2 rounded-full border border-line bg-paper/50 pl-4 pr-1.5 py-1.5 focus-within:border-[#CFC7B8] focus-within:bg-surface transition-colors">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isSynced ? "Ask about your calendar..." : "Syncing calendar data..."}
-            className="min-w-0 flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={isLoading || !isSynced}
+            placeholder="Ask, or say “lunch with Sam Friday at 1”"
+            className="min-w-0 flex-1 bg-transparent text-[14.5px] text-ink placeholder:text-muted/70 focus:outline-none"
+            disabled={isLoading}
           />
           <button
             type="submit"
-            disabled={isLoading || !input.trim() || !isSynced}
-            className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={isLoading || !input.trim()}
+            className="bg-ink text-paper p-2 rounded-full hover:bg-ink-soft disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
             aria-label="Send message"
           >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
           </button>
-        </div>
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
-          <Sparkles className="w-3 h-3" />
-          <span>Answers use your synced calendar events.</span>
         </div>
       </form>
     </div>
