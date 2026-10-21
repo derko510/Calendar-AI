@@ -67,10 +67,22 @@ export const parseEventText = (text, now = new Date()) => {
 
   const quoted = text.match(/["“']([^"”']{2,})["”']/);
   let title = quoted ? quoted[1] : text;
+  let rest = quoted ? text.replace(quoted[0], ' ') : text;
+  for (const hit of [dateHit, timeHit]) {
+    if (hit) rest = rest.replace(new RegExp(hit.match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ' ');
+  }
+
+  // Location: "at/in/@ Capitalized Place" (times and dates are already stripped), or "location: ..."
+  let location = '';
+  const locHit = rest.match(/\b(?:location|place|where)\s*:\s*([^,]+)/i)
+    || rest.match(/(?:\s|^)(?:at|in|@)\s+((?:the\s+)?[A-Z0-9][\w'&.-]*(?:\s+(?:[A-Z0-9][\w'&.-]*|of|on|the|&))*)/);
+  if (locHit) {
+    location = locHit[1].replace(/\s+(of|on|the|&)\s*$/i, '').trim();
+    rest = rest.replace(locHit[0], ' ');
+  }
+
   if (!quoted) {
-    for (const hit of [dateHit, timeHit]) {
-      if (hit) title = title.replace(new RegExp(hit.match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ' ');
-    }
+    title = rest;
     title = title
       .replace(/\b(please|can you|could you|create|add|schedule|book|make|set up|new event|an? event|calendar event|to my calendar|on my calendar|for me|titled|called|named)\b/gi, ' ')
       .replace(/\b(at|on|for)\s*$/i, ' ')
@@ -86,6 +98,6 @@ export const parseEventText = (text, now = new Date()) => {
     startTime: timeHit ? timeHit.time : '09:00',
     endTime: '',
     description: '',
-    location: ''
+    location
   };
 };
