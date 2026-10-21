@@ -138,26 +138,23 @@ const Dashboard = ({ userCredential }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 text-lg">Loading your Google Calendar...</p>
-        </div>
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <p className="font-serif italic text-3xl text-muted animate-pulse">Opening your calendar…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-6 flex flex-col">
+    <div className="min-h-screen bg-paper p-3 sm:p-4 lg:p-5 flex flex-col">
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-6 py-4 mb-4 w-full max-w-4xl mx-auto">
-          <p className="text-red-700 text-center">{error}</p>
+        <div className="mb-4 w-full max-w-3xl mx-auto rounded-xl border border-accent/30 bg-accent-soft px-5 py-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          <p className="text-sm text-[#6B2E17] text-center">{error}</p>
           {error.includes('expired') && (
-            <div className="mt-4 text-center">
+            <div>
               <button
                 onClick={handleTokenExpiredRetry}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                className="rounded-full bg-ink px-4 py-1.5 text-sm font-medium text-paper hover:bg-ink-soft transition-colors"
               >
                 Sign In Again
               </button>
@@ -168,9 +165,9 @@ const Dashboard = ({ userCredential }) => {
 
       {/* Main Content Grid - Calendar + Future Chatbot Space */}
       <div className="w-full max-w-[120rem] mx-auto flex-1 min-h-0">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[calc(100vh-3rem)]">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-3 lg:gap-4 lg:h-[calc(100vh-2.5rem)]">
           {/* Calendar Section */}
-          <div className="lg:col-span-2 h-[80vh] lg:h-full min-h-0">
+          <div className="h-[78vh] lg:h-full min-h-0">
             <GoogleCalendar
               events={events}
               loading={loading}
@@ -183,15 +180,10 @@ const Dashboard = ({ userCredential }) => {
           </div>
 
           {/* Chatbot/Sidebar Space */}
-          <div className="lg:col-span-1 h-[80vh] lg:h-full min-h-0">
+          <div className="h-[78vh] lg:h-full min-h-0">
             <div className="h-full">
               {authLoading ? (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                    <p className="text-gray-600">Setting up chatbot...</p>
-                  </div>
-                </div>
+                <div className="bg-surface rounded-2xl border border-line h-full" />
               ) : backendAuth ? (
                 <RAGChatBot backendAuth={backendAuth} />
               ) : (
