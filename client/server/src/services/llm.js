@@ -4,6 +4,22 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 export const groqModel = () => process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 
+// Pasted env values often carry a trailing newline, spaces or quotes, which Groq rejects as an invalid key
+export const groqKey = () => {
+  let key = (process.env.GROQ_API_KEY || '').trim();
+  const quoted = key.length > 1 && (key[0] === '"' || key[0] === "'") && key.at(-1) === key[0];
+  if (quoted) key = key.slice(1, -1).trim();
+  return key;
+};
+
+// Safe to show: identifies which key is loaded without revealing it
+export const groqKeyFingerprint = () => {
+  const raw = process.env.GROQ_API_KEY;
+  if (!raw) return null;
+  const key = groqKey();
+  return { start: key.slice(0, 8), end: key.slice(-4), length: key.length, hadExtraCharacters: raw !== key };
+};
+
 // Groq returns {"error":{"message":"..."}}; fall back to the raw body
 async function errorText(response) {
   const body = await response.text();
@@ -16,12 +32,12 @@ async function errorText(response) {
 
 // json: true forces the model to return a single valid JSON object
 export async function generate(prompt, { temperature = 0.3, maxTokens = 500, json = false } = {}) {
-  if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is not set on the server');
+  if (!groqKey()) throw new Error('GROQ_API_KEY is not set on the server');
 
   const response = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      Authorization: `Bearer ${groqKey()}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
