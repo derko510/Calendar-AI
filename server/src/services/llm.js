@@ -4,7 +4,8 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 export const llmProvider = () => (process.env.GROQ_API_KEY ? 'groq' : 'ollama');
 
-export async function generate(prompt, { temperature = 0.3, maxTokens = 500 } = {}) {
+// json: true forces the model to return a single valid JSON object
+export async function generate(prompt, { temperature = 0.3, maxTokens = 500, json = false } = {}) {
   if (llmProvider() === 'groq') {
     const response = await fetch(GROQ_URL, {
       method: 'POST',
@@ -17,6 +18,7 @@ export async function generate(prompt, { temperature = 0.3, maxTokens = 500 } = 
         messages: [{ role: 'user', content: prompt }],
         temperature,
         max_tokens: maxTokens,
+        ...(json && { response_format: { type: 'json_object' } }),
       }),
     });
 
@@ -28,5 +30,5 @@ export async function generate(prompt, { temperature = 0.3, maxTokens = 500 } = 
   }
 
   const { OllamaService } = await import('./ollamaService.js');
-  return new OllamaService().generate(prompt, { temperature, num_predict: maxTokens });
+  return new OllamaService().generate(prompt, { temperature, num_predict: maxTokens, ...(json && { format: 'json' }) });
 }

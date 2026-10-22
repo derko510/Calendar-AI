@@ -21,7 +21,7 @@ flowchart LR
     Auth["/api/auth<br/>google-token · user · logout"]
     Cal["/api/calendar<br/>sync · events"]
     RagRoute["/api/rag-chat<br/>message · sync"]
-    RealRoute["/api/real-calendar<br/>sync-frontend-data · ask · parse-events"]
+    RealRoute["/api/real-calendar<br/>sync-frontend-data · interpret"]
     MW[jwtAuth / session middleware]
     RAG[RAGService]
     Sync[CalendarSyncService]

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowUp, Loader2, Calendar, RefreshCw, Clock, MapPin, Trash2, X } from 'lucide-react';
 import googleCalendarService from '../services/googleCalendar';
-import { parseEventText } from '../utils/parseEventText';
 
 // Local dev talks to the local server; the deployed site talks to the deployed one
 const getApiBaseUrl = () =>
@@ -94,7 +93,8 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
 
   const submitPrompt = (prompt) => sendMessage(prompt);
 
-  const stripHtml = (value = '') => String(value).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  const stripHtml = (value = '') =>
+    (new DOMParser().parseFromString(String(value), 'text/html').body.textContent || '').replaceAll('\n', ' ').split(' ').filter(Boolean).join(' ');
 
   const getEventStart = (event) => {
     const startValue = event.startDatetime || event.start?.dateTime || event.start?.date;
@@ -112,182 +112,6 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     description: stripHtml(event.description || '')
   });
 
-  const STOPWORDS = new Set([
-    'what','when','where','which','who','how','why','is','are','was','were',
-    'have','has','had','will','would','could','can','should','shall','may','might',
-    'the','a','an','and','or','but','not','no','nor','so','yet',
-    'i','me','my','we','our','you','your','he','she','they','their','it','its',
-    'this','that','these','those','there','here',
-    'on','in','at','for','to','of','from','by','with','about','as','into','through',
-    'do','did','does','be','been','being',
-    'all','every','everything','anything','something','nothing','any','some',
-    'find','show','get','list','tell','give','look',
-    'calendar','event','events','schedule','appointment','appointments',
-    'please','just','okay','ok','sure','well','now','then','also','too',
-    'next','last','soon','upcoming','past','recent',
-  ]);
-
-  const extractKeywords = (text) =>
-    text.toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter(w => w.length > 1 && !STOPWORDS.has(w));
-
-  const dateRangeFromText = (text, now) => {
-    const startOfDay = (d) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
-    const endOfDay   = (d) => { const x = new Date(d); x.setHours(23,59,59,999); return x; };
-
-    if (/\byesterday\b/.test(text)) {
-      const d = new Date(now); d.setDate(d.getDate() - 1);
-      return { min: startOfDay(d), max: endOfDay(d), label: 'yesterday' };
-    }
-    if (/\btoday\b/.test(text)) {
-      return { min: startOfDay(now), max: endOfDay(now), label: 'today' };
-    }
-    if (/\btomorrow\b/.test(text)) {
-      const d = new Date(now); d.setDate(d.getDate() + 1);
-      return { min: startOfDay(d), max: endOfDay(d), label: 'tomorrow' };
-    }
-    if (/\blast\s+week\b/.test(text)) {
-      const mon = new Date(now); mon.setDate(mon.getDate() - mon.getDay() - 7);
-      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-      return { min: startOfDay(mon), max: endOfDay(sun), label: 'last week' };
-    }
-    if (/\b(this\s+week|week)\b/.test(text) && !/next/.test(text)) {
-      const mon = new Date(now); mon.setDate(mon.getDate() - mon.getDay());
-      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-      return { min: startOfDay(mon), max: endOfDay(sun), label: 'this week' };
-    }
-    if (/\bnext\s+week\b/.test(text)) {
-      const mon = new Date(now); mon.setDate(mon.getDate() - mon.getDay() + 7);
-      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-      return { min: startOfDay(mon), max: endOfDay(sun), label: 'next week' };
-    }
-    if (/\blast\s+month\b/.test(text)) {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end   = new Date(now.getFullYear(), now.getMonth(), 0);
-      return { min: startOfDay(start), max: endOfDay(end), label: 'last month' };
-    }
-    if (/\b(this\s+month|month)\b/.test(text) && !/next/.test(text)) {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      return { min: startOfDay(start), max: endOfDay(end), label: 'this month' };
-    }
-    if (/\bnext\s+month\b/.test(text)) {
-      const start = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      const end   = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-      return { min: startOfDay(start), max: endOfDay(end), label: 'next month' };
-    }
-    if (/\b(weekend)\b/.test(text)) {
-      const sat = new Date(now); sat.setDate(now.getDate() + (6 - now.getDay()));
-      const sun = new Date(sat); sun.setDate(sat.getDate() + 1);
-      return { min: startOfDay(sat), max: endOfDay(sun), label: 'this weekend' };
-    }
-    return null;
-  };
-
-  const getLocalAnswer = (messageText) => {
-    const text = messageText.toLowerCase();
-    const now = new Date();
-    const normalizedEvents = (events || [])
-      .map(normalizeCalendarEvent)
-      .filter(event => event.startDatetime)
-      .sort((a, b) => a.startDatetime - b.startDatetime);
-
-    let matches = normalizedEvents;
-    let intro = 'I found these events:';
-
-    const isLookingForNext  = /\b(next|upcoming|soon|what.{0,10}(is|am)|coming up)\b/.test(text);
-    const isLookingForLast  = /\b(last|previous|most recent|when did)\b/.test(text);
-    const dateRange = dateRangeFromText(text, now);
-    const keywords  = extractKeywords(text);
-
-    if (dateRange) {
-      matches = normalizedEvents.filter(e =>
-        e.startDatetime >= dateRange.min && e.startDatetime <= dateRange.max
-      );
-      // If also filtering by keyword (e.g. "dentist last week")
-      if (keywords.length > 0) {
-        const filtered = matches.filter(e => {
-          const s = `${e.title} ${e.location} ${e.description}`.toLowerCase();
-          return keywords.some(kw => s.includes(kw));
-        });
-        if (filtered.length > 0) matches = filtered;
-      }
-      intro = matches.length > 0
-        ? `Here is what you have ${dateRange.label}:`
-        : `I could not find events ${dateRange.label}.`;
-    } else if (isLookingForNext && keywords.length === 0) {
-      matches = normalizedEvents.filter(e => e.startDatetime >= now);
-      intro = matches.length > 0 ? 'Next on your calendar:' : 'No upcoming events found.';
-    } else if (isLookingForLast && keywords.length === 0) {
-      matches = normalizedEvents.filter(e => e.startDatetime < now).reverse();
-      intro = matches.length > 0 ? 'Your most recent events:' : 'No past events found.';
-    } else if (keywords.length > 0) {
-      matches = normalizedEvents.filter(e => {
-        const s = `${e.title} ${e.location} ${e.description}`.toLowerCase();
-        return keywords.some(kw => s.includes(kw));
-      });
-      if (isLookingForLast) {
-        matches = matches.filter(e => e.startDatetime < now).reverse();
-        intro = matches.length > 0
-          ? `Most recent matching event${matches.length === 1 ? '' : 's'}:`
-          : 'No past events found matching that.';
-      } else if (isLookingForNext) {
-        matches = matches.filter(e => e.startDatetime >= now);
-        intro = matches.length > 0
-          ? `Upcoming matching event${matches.length === 1 ? '' : 's'}:`
-          : 'No upcoming events found matching that.';
-      } else {
-        intro = matches.length > 0 ? 'Here are matching events:' : '';
-      }
-    }
-
-    const topMatches = matches.slice(0, 5);
-
-    if (topMatches.length === 0) {
-      return {
-        content: 'I could not find matching events in your calendar.',
-        events: []
-      };
-    }
-
-    const lines = topMatches.map(event => {
-      const time = event.startDatetime.toLocaleString([], {
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: event.start?.date ? undefined : 'numeric',
-        minute: event.start?.date ? undefined : '2-digit'
-      });
-      return `- ${event.title} — ${time}${event.location ? ` at ${event.location}` : ''}`;
-    });
-
-    return {
-      content: `${intro}\n${lines.join('\n')}`,
-      events: topMatches
-    };
-  };
-
-  const isCreateIntent = (text) =>
-    /\b(create|add|schedule|book|make|set up|new event)\b/.test(text.toLowerCase());
-
-  const parseEventsWithAI = async (messageText) => {
-    const API_BASE_URL = getApiBaseUrl();
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/real-calendar/parse-events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageText, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || 'Parse failed');
-      return data.events; // array
-    } catch (err) {
-      // AI backend unreachable (e.g. deployed without Ollama) — fall back to the local parser
-      const local = parseEventText(messageText);
-      if (!local) throw err;
-      return [local];
-    }
-  };
-
   // Local wall-clock "YYYY-MM-DDTHH:MM:SS" + 1h (toISOString would shift it to UTC)
   const addOneHour = (localISO) => {
     const d = new Date(localISO);
@@ -296,55 +120,29 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
   };
 
-  const queueCreateConfirmation = async (messageText) => {
-    if (!isCreateIntent(messageText)) return false;
-    setIsLoading(true);
-    try {
-      const parsedList = await parseEventsWithAI(messageText);
-      const enriched = parsedList.map(parsed => {
-        const startISO = `${parsed.date}T${parsed.startTime}:00`;
-        const startMs = new Date(startISO).getTime();
-        let endISO;
-        if (parsed.endTime && /^\d{2}:\d{2}$/.test(parsed.endTime)) {
-          const candidate = new Date(`${parsed.date}T${parsed.endTime}:00`).getTime();
-          const diffHrs = (candidate - startMs) / (1000 * 60 * 60);
-          // Only trust Ollama's endTime if it's a plausible duration (1 min – 4 hrs)
-          if (diffHrs > 0 && diffHrs <= 4) {
-            endISO = `${parsed.date}T${parsed.endTime}:00`;
-          } else {
-            endISO = addOneHour(startISO);
-          }
-        } else {
-          endISO = addOneHour(startISO);
-        }
-        return { parsed, startISO, endISO };
-      });
-      const actionId = String(Date.now());
-      setPendingCreate({ id: actionId, events: enriched });
-      const count = enriched.length;
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: `I'll create ${count} event${count === 1 ? '' : 's'}. Does this look right?`,
-        timestamp: new Date(),
-        action: { type: 'confirmCreate', id: actionId, events: enriched }
-      }]);
-    } catch (err) {
-      console.error('Create event parse error:', err);
-      const isQuota = err.message?.includes('429') || err.message?.includes('quota');
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: isQuota
-          ? 'AI is rate limited right now — wait a moment and try again.'
-          : 'I had trouble parsing that event. Try: "Create dentist appointment on June 3 at 2pm".',
-        timestamp: new Date(),
-        isError: true
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-    return true;
+  const showCreateConfirmation = (parsedList) => {
+    const enriched = parsedList.map(parsed => {
+      const startISO = `${parsed.date}T${parsed.startTime}:00`;
+      const startMs = new Date(startISO).getTime();
+      let endISO = addOneHour(startISO);
+      if (parsed.endTime) {
+        const candidate = new Date(`${parsed.date}T${parsed.endTime}:00`).getTime();
+        const diffHrs = (candidate - startMs) / (1000 * 60 * 60);
+        // Only trust the AI's endTime if it's a plausible duration (1 min – 4 hrs)
+        if (diffHrs > 0 && diffHrs <= 4) endISO = `${parsed.date}T${parsed.endTime}:00`;
+      }
+      return { parsed, startISO, endISO };
+    });
+    const actionId = String(Date.now());
+    setPendingCreate({ id: actionId, events: enriched });
+    const count = enriched.length;
+    setMessages(prev => [...prev, {
+      id: Date.now() + 1,
+      type: 'bot',
+      content: `I'll create ${count} event${count === 1 ? '' : 's'}. Does this look right?`,
+      timestamp: new Date(),
+      action: { type: 'confirmCreate', id: actionId, events: enriched }
+    }]);
   };
 
   const confirmCreateEvent = async (actionId) => {
@@ -407,89 +205,42 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     }]);
   };
 
-  const isWildcardDelete = (text) => {
-    // Strip the action verb and "all/every/everything" qualifiers, then check if anything specific remains
-    const withoutVerb = text.replace(/\b(delete|remove|cancel)\b/gi, '');
-    const withoutQualifiers = withoutVerb.replace(/\b(everything|all events?|all of (my|the) events?|all|every)\b/gi, '');
-    return extractKeywords(withoutQualifiers).length === 0;
-  };
-
-  const getDeleteIntent = (messageText) => {
-    const text = messageText.toLowerCase();
-    if (!/\b(delete|remove|cancel)\b/.test(text)) return null;
-
-    if (isWildcardDelete(text)) {
-      return { query: 'all events', keywords: [], wildcard: true };
-    }
-
-    const keywords = extractKeywords(text.replace(/\b(delete|remove|cancel)\b/g, ''));
-    if (keywords.length === 0) return null;
-
-    return {
-      query: keywords.join(' '),
-      keywords,
-      wildcard: false
-    };
-  };
-
-  const findMatchingEvents = (keywords, wildcard = false) => {
-    const all = (events || [])
+  const showDeleteConfirmation = (eventIds) => {
+    const wanted = new Set(eventIds);
+    const matched = (events || [])
+      .filter(e => wanted.has(e.id || e.googleEventId))
       .map(normalizeCalendarEvent)
-      .filter(e => e.startDatetime && e.isWritable !== false)
+      .filter(e => e.startDatetime)
       .sort((a, b) => a.startDatetime - b.startDatetime);
-    if (wildcard) return all;
-    return all.filter(e => {
-      const s = `${e.title} ${e.location} ${e.description}`.toLowerCase();
-      return keywords.length === 1
-        ? keywords.some(kw => s.includes(kw))
-        : keywords.every(kw => s.includes(kw)) || keywords.some(kw => s.includes(kw) && kw.length > 4);
-    });
-  };
+    const matches = matched.filter(e => e.isWritable !== false);
+    const readOnlyCount = matched.length - matches.length;
 
-  const countReadOnlyMatches = (keywords, wildcard = false) => {
-    const all = (events || [])
-      .map(normalizeCalendarEvent)
-      .filter(e => e.startDatetime && e.isWritable === false);
-    if (wildcard) return all.length;
-    return all.filter(e => {
-      const s = `${e.title} ${e.location} ${e.description}`.toLowerCase();
-      return keywords.length === 1
-        ? keywords.some(kw => s.includes(kw))
-        : keywords.every(kw => s.includes(kw)) || keywords.some(kw => s.includes(kw) && kw.length > 4);
-    }).length;
-  };
-
-  const queueDeleteConfirmation = (messageText) => {
-    const deleteIntent = getDeleteIntent(messageText);
-    if (!deleteIntent) return false;
-
-    const matches = findMatchingEvents(deleteIntent.keywords, deleteIntent.wildcard);
     if (matches.length === 0) {
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         type: 'bot',
-        content: `I could not find events matching "${deleteIntent.query}".`,
+        content: readOnlyCount > 0
+          ? 'Those events are on a shared or subscribed calendar, so I can\'t delete them.'
+          : 'I could not find events matching that.',
         timestamp: new Date()
       }]);
-      return true;
+      return;
     }
 
-    const readOnlyCount = countReadOnlyMatches(deleteIntent.keywords, deleteIntent.wildcard);
     const readOnlyNote = readOnlyCount > 0
       ? ` (${readOnlyCount} read-only event${readOnlyCount === 1 ? '' : 's'} from shared/subscribed calendars will be skipped.)`
       : '';
 
     const actionId = String(Date.now());
-    setPendingDelete({ id: actionId, events: matches, query: deleteIntent.query });
+    setPendingDelete({ id: actionId, events: matches });
     setMessages(prev => [...prev, {
       id: Date.now() + 1,
       type: 'bot',
-      content: `I found ${matches.length} deletable event${matches.length === 1 ? '' : 's'} matching "${deleteIntent.query}". Confirm to remove them from Google Calendar.${readOnlyNote}`,
+      content: `I found ${matches.length} event${matches.length === 1 ? '' : 's'} to delete. Confirm to remove ${matches.length === 1 ? 'it' : 'them'} from Google Calendar.${readOnlyNote}`,
       timestamp: new Date(),
       events: matches.slice(0, 5),
       action: { type: 'confirmDelete', id: actionId }
     }]);
-    return true;
   };
 
   const confirmDeleteEvents = async (actionId) => {
@@ -562,53 +313,47 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     setInput('');
     setIsLoading(true);
 
-    if (await queueCreateConfirmation(userMessage.content)) {
-      return;
-    }
-
-    if (queueDeleteConfirmation(userMessage.content)) {
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      const answer = await askAIWithCalendar(userMessage.content);
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: answer,
-        timestamp: new Date()
-      }]);
+      const result = await interpretMessage(userMessage.content);
+      if (result.intent === 'create') {
+        showCreateConfirmation(result.events);
+      } else if (result.intent === 'delete') {
+        showDeleteConfirmation(result.eventIds);
+      } else {
+        setMessages(prev => [...prev, {
+          id: Date.now() + 1,
+          type: 'bot',
+          content: result.answer,
+          timestamp: new Date()
+        }]);
+      }
     } catch (error) {
       console.error('Chat error:', error);
-      if (error.message === 'rate_limited') {
-        setMessages(prev => [...prev, { id: Date.now() + 1, type: 'bot', content: 'AI is rate limited — wait a moment and try again.', timestamp: new Date(), isError: true }]);
-        setIsLoading(false);
-        return;
-      }
-      const localAnswer = getLocalAnswer(userMessage.content);
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         type: 'bot',
-        content: localAnswer.content,
+        content: error.message === 'rate_limited'
+          ? 'AI is rate limited — wait a moment and try again.'
+          : 'I could not reach the AI. Try again in a moment.',
         timestamp: new Date(),
-        events: localAnswer.events
+        isError: true
       }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const askAIWithCalendar = async (question) => {
+  // The AI decides what the message means: create events, delete events, or answer a question
+  const interpretMessage = async (message) => {
     const API_BASE_URL = getApiBaseUrl();
-    const res = await fetch(`${API_BASE_URL}/api/real-calendar/ask`, {
+    const res = await fetch(`${API_BASE_URL}/api/real-calendar/interpret`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: question, events: events || [], timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+      body: JSON.stringify({ message, events: events || [], timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
     });
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.message || 'AI error');
-    return data.message;
+    return data;
   };
 
   const handleSubmit = async (e) => {

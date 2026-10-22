@@ -25,12 +25,13 @@ export class OllamaService {
     }
   }
 
-  async generate(prompt, options = {}) {
+  async generate(prompt, { format, ...options } = {}) {
     try {
       const response = await axios.post(`${this.baseURL}/api/generate`, {
         model: this.model,
         prompt: prompt,
         stream: false,
+        ...(format && { format }),
         options: {
           temperature: options.temperature || 0.7,
           ...options

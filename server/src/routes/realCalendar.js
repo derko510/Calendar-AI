@@ -189,108 +189,105 @@ router.post('/chat', async (req, res) => {
   }
 });
 
-// Smart Q&A: frontend sends events + question, backend answers with the LLM (Groq or local Ollama)
-router.post('/ask', async (req, res) => {
+// One AI call per chat message: decides whether the user wants to create events, delete events,
+// or ask a question, and returns structured data for that intent. No keyword or regex parsing.
+router.post('/interpret', async (req, res) => {
   try {
     const { message, events = [] } = req.body;
     if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
     const timeZone = safeTimeZone(req.body.timeZone);
+    const { today, year } = userToday(timeZone);
 
-    const today = new Date().toLocaleDateString('en-US', { timeZone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    const eventLines = events
-      .filter(e => e.startDatetime || e.start?.dateTime || e.start?.date)
-      .map(e => {
+    const listed = events.filter(e => e.startDatetime || e.start?.dateTime || e.start?.date);
+    const eventLines = listed
+      .map((e, i) => {
         const start = new Date(e.startDatetime || e.start?.dateTime || e.start?.date);
         const t = start.toLocaleString('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
         const loc = e.location ? ` | ${e.location}` : '';
-        return `- ${e.summary || e.title || 'Untitled'} | ${t}${loc}`;
+        return `[${i}] ${e.summary || e.title || 'Untitled'} | ${t}${loc}`;
       })
       .join('\n');
 
-    const prompt = `Today is ${today}. You are a smart calendar assistant. Answer the user's question based on their calendar events below.
-If asking about "class", "school", "lecture", or "course" look for academic events (course names, instructor names).
-Be concise. If no matching event exists, say so briefly.
+    const prompt = `Today is ${today}. You are a calendar assistant. Read the user's message and decide what they want.
 
-Calendar events:
-${eventLines}
+Calendar events (numbered):
+${eventLines || '(none)'}
 
-Question: ${message}
-Answer:`;
+User message: ${message}
 
-    const answer = await generate(prompt, { temperature: 0.3, maxTokens: 300 });
-    res.json({ success: true, message: answer.trim() });
+The message may contain typos and slang ("tomorow", "tmrw", "libary"). Interpret them the way a person would.
+
+Respond with ONLY one JSON object in this shape:
+{"intent":"create" | "delete" | "question",
+ "events":[{"title":"...","date":"YYYY-MM-DD","startTime":"HH:MM","endTime":"HH:MM","description":"...","location":"..."}],
+ "deleteIndexes":[0],
+ "answer":"..."}
+
+- intent "create": the user wants to add one or more events. Fill "events".
+  title: short and clean, spelling fixed, without the date, time, place, or words like "create"/"schedule".
+  location: the place with spelling fixed, or "". description: "" unless extra details were given.
+  Resolve relative dates ("tomorrow", "next friday") from today. Use ${year} if no year is given.
+  24h times (7 pm = 19:00). endTime = startTime + 1 hour unless stated.
+- intent "delete": the user wants to remove events. Put the numbers of the matching events from the list in "deleteIndexes".
+- intent "question": anything else. Put a concise answer in "answer" using only the events above.
+  If asked about "class", "school", "lecture" or "course", look for academic events (course names, instructor names).
+  If nothing matches, say so briefly.
+Leave fields that don't apply to the intent empty.`;
+
+    let lastError;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const raw = await generate(prompt, { temperature: 0, maxTokens: 800, json: true });
+        const result = toInterpretation(JSON.parse(raw), listed);
+        if (result) return res.json({ success: true, ...result });
+        lastError = new Error(`Unusable LLM output: ${raw}`);
+      } catch (err) {
+        if (err.message === 'rate_limited') throw err;
+        lastError = err;
+      }
+    }
+    console.error('Interpret failed:', lastError);
+    res.status(422).json({ success: false, message: 'I could not understand that. Try rephrasing.' });
   } catch (err) {
-    console.error('Ask endpoint error:', err);
+    console.error('Interpret endpoint error:', err);
     if (err.message === 'rate_limited') return res.status(429).json({ success: false, message: 'rate_limited' });
     res.status(500).json({ success: false, message: 'Could not reach the AI.' });
   }
 });
 
-// Parse MULTIPLE event creation requests into a JSON array using the LLM
-router.post('/parse-events', async (req, res) => {
-  try {
-    const { message } = req.body;
-    if (!message) return res.status(400).json({ success: false });
-
-    const { today, year } = userToday(req.body.timeZone);
-
-    const prompt = `Today is ${today}. Extract ALL calendar events mentioned in this message. Respond with ONLY a JSON array, no explanation.
-
-Message: ${message}
-
-Output format: [{"title":"...","date":"YYYY-MM-DD","startTime":"HH:MM","endTime":"HH:MM","description":"...","location":"..."}]
-
-Rules: use ${year} if year not given, 24h time (2pm=14:00), endTime MUST be startTime+1hr if not explicitly stated (never leave endTime empty), empty string for description/location if not given. Interpret misspelled words ("tomorow" = tomorrow) and fix obvious spelling mistakes in title and location. Never put date/time words in the title; put places in location.
-
-JSON array:`;
-
-    const raw = await generate(prompt, { temperature: 0, maxTokens: 500 });
-    const jsonMatch = raw.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) return res.status(422).json({ success: false, message: 'Could not parse events.' });
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    const valid = parsed.filter(e => e.title && e.date && e.startTime);
-    if (valid.length === 0) return res.status(422).json({ success: false, message: 'No valid events found.' });
-
-    res.json({ success: true, events: valid });
-  } catch (err) {
-    console.error('Parse events error:', err);
-    res.status(500).json({ success: false, message: 'Could not parse events.' });
+// Check the LLM's JSON before the client acts on it; null means retry
+function toInterpretation(output, listedEvents) {
+  if (output?.intent === 'create') {
+    const events = (Array.isArray(output.events) ? output.events : [])
+      .filter(e => e?.title && isDateTime(e.date, e.startTime))
+      .map(e => ({
+        title: String(e.title).trim(),
+        date: e.date,
+        startTime: e.startTime,
+        endTime: isDateTime(e.date, e.endTime) ? e.endTime : '',
+        description: e.description || '',
+        location: e.location || ''
+      }));
+    return events.length > 0 ? { intent: 'create', events } : null;
   }
-});
-
-// Parse event creation request into structured JSON using the LLM
-router.post('/parse-event', async (req, res) => {
-  try {
-    const { message } = req.body;
-    if (!message) return res.status(400).json({ success: false });
-
-    const { today, year } = userToday(req.body.timeZone);
-
-    const prompt = `Today is ${today}. Extract ONE calendar event from this message. Respond with ONLY a JSON object, no explanation.
-
-Message: ${message}
-
-JSON structure: {"title":"...","date":"YYYY-MM-DD","startTime":"HH:MM","endTime":"HH:MM","description":"...","location":"..."}
-
-Rules: use ${year} if year not given, 24h time, endTime MUST be startTime+1hr if not explicitly stated (never leave endTime empty), empty string for description/location if not given.
-
-JSON:`;
-
-    const raw = await generate(prompt, { temperature: 0, maxTokens: 150 });
-    const jsonMatch = raw.match(/\{[\s\S]*?\}/);
-    if (!jsonMatch) return res.status(422).json({ success: false, message: 'Could not parse event from that message.' });
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (!parsed.title || !parsed.date || !parsed.startTime) {
-      return res.status(422).json({ success: false, message: 'Missing event details.' });
-    }
-    res.json({ success: true, event: parsed });
-  } catch (err) {
-    console.error('Parse event error:', err);
-    res.status(500).json({ success: false, message: 'Could not parse event. Try: "Create dentist on June 3 at 2pm".' });
+  if (output?.intent === 'delete') {
+    const ids = (Array.isArray(output.deleteIndexes) ? output.deleteIndexes : [])
+      .map(i => listedEvents[i])
+      .filter(Boolean)
+      .map(e => e.id || e.googleEventId);
+    return { intent: 'delete', eventIds: [...new Set(ids)] };
   }
-});
+  if (output?.intent === 'question' && output.answer) {
+    return { intent: 'question', answer: String(output.answer).trim() };
+  }
+  return null;
+}
+
+function isDateTime(date, time) {
+  return typeof date === 'string' && date.length === 10
+    && typeof time === 'string' && time.length === 5
+    && !Number.isNaN(new Date(`${date}T${time}:00`).getTime());
+}
 
 function safeTimeZone(timeZone) {
   try {
