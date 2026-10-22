@@ -238,12 +238,13 @@ Respond with ONLY one JSON object in this shape:
   If nothing matches, say so briefly.
 Leave fields that don't apply to the intent empty.`;
 
+    // 2500 output tokens fits ~25 events in one message and stays under the free tier's ~8k tokens/minute
     // Retry once only when the model answered with unusable JSON; provider errors (bad key, network) go straight to the catch below
     let lastError;
     for (let attempt = 0; attempt < 2; attempt++) {
       let raw;
       try {
-        raw = await generate(prompt, { temperature: 0, maxTokens: 800, json: true });
+        raw = await generate(prompt, { temperature: 0, maxTokens: 2500, json: true });
       } catch (err) {
         // A rate limit on the retry would hide the real problem (the first reply was unusable)
         if (attempt > 0 && err.message === 'rate_limited') break;
