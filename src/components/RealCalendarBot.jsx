@@ -149,17 +149,22 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     try {
       googleCalendarService.setAccessToken(userCredential.accessToken);
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const results = await Promise.allSettled(
-        eventsToCreate.map(({ parsed, startISO, endISO }) =>
-          googleCalendarService.createEvent('primary', {
+      // One at a time: Google rejects bursts of parallel inserts with rate-limit errors
+      const results = [];
+      for (const { parsed, startISO, endISO } of eventsToCreate) {
+        try {
+          const value = await googleCalendarService.createEvent('primary', {
             summary: parsed.title,
             description: parsed.description || '',
             location: parsed.location || '',
             start: { dateTime: startISO, timeZone: tz },
             end:   { dateTime: endISO,   timeZone: tz }
-          })
-        )
-      );
+          });
+          results.push({ status: 'fulfilled', value });
+        } catch (error) {
+          results.push({ status: 'rejected', reason: error });
+        }
+      }
       const succeeded = eventsToCreate.filter((_, i) => results[i].status === 'fulfilled');
       const createdGoogleEvents = results
         .filter(r => r.status === 'fulfilled')
@@ -167,14 +172,18 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
       if (onEventsCreated && createdGoogleEvents.length > 0) {
         onEventsCreated(createdGoogleEvents);
       }
-      const failed = eventsToCreate.length - succeeded.length;
+      const failedLines = eventsToCreate
+        .map(({ parsed }, i) => results[i].status === 'rejected'
+          ? `• ${parsed.title} — ${results[i].reason?.response?.data?.error?.message || results[i].reason?.message || 'unknown error'}`
+          : null)
+        .filter(Boolean);
       const lines = succeeded.map(({ parsed, startISO }) =>
         `• ${parsed.title} — ${new Date(startISO).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
       ).join('\n');
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         type: 'bot',
-        content: `Created ${succeeded.length} event${succeeded.length === 1 ? '' : 's'}:\n${lines}${failed ? `\n${failed} could not be created.` : ''}`,
+        content: `Created ${succeeded.length} event${succeeded.length === 1 ? '' : 's'}:\n${lines}${failedLines.length ? `\n\nCould not create ${failedLines.length}:\n${failedLines.join('\n')}` : ''}`,
         timestamp: new Date()
       }]);
     } catch (err) {
@@ -249,9 +258,16 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
     try {
       googleCalendarService.setAccessToken(userCredential.accessToken);
 
-      const results = await Promise.allSettled(
-        eventsToDelete.map(event => googleCalendarService.deleteEvent(event.calendarId || 'primary', event.id || event.googleEventId))
-      );
+      // One at a time, for the same reason as creating
+      const results = [];
+      for (const event of eventsToDelete) {
+        try {
+          await googleCalendarService.deleteEvent(event.calendarId || 'primary', event.id || event.googleEventId);
+          results.push({ status: 'fulfilled' });
+        } catch (error) {
+          results.push({ status: 'rejected', reason: error });
+        }
+      }
       const deletedIds = eventsToDelete
         .filter((_, index) => results[index].status === 'fulfilled')
         .map(event => event.id || event.googleEventId);
