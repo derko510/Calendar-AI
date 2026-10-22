@@ -251,7 +251,8 @@ Leave fields that don't apply to the intent empty.`;
   } catch (err) {
     console.error('Interpret endpoint error:', err);
     if (err.message === 'rate_limited') return res.status(429).json({ success: false, message: 'rate_limited' });
-    res.status(500).json({ success: false, message: 'Could not reach the AI.' });
+    // Surface the provider's reason (bad key, request too large, ...) so it shows up in the chat
+    res.status(500).json({ success: false, message: `AI error: ${String(err.message).slice(0, 300)}` });
   }
 });
 
