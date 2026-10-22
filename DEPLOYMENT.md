@@ -20,7 +20,7 @@ serverless function at `/api/*` on the same domain. No CORS setup or `VITE_API_U
 | --- | --- |
 | `VITE_GOOGLE_CLIENT_ID` | Google sign-in in the browser |
 | `GROQ_API_KEY` | the chat (required) |
-| `GROQ_MODEL` | optional, defaults to `llama-3.1-8b-instant` |
+| `GROQ_MODEL` | optional, defaults to `openai/gpt-oss-20b` |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | server-side Google auth |
 | `SESSION_SECRET`, `JWT_SECRET` | signing sessions and tokens (`openssl rand -hex 32`) |
 | `DATABASE_URL` | optional; without it synced events are kept in memory |
