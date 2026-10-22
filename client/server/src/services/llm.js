@@ -35,7 +35,21 @@ async function errorText(response) {
 }
 
 // json: true forces the model to return a single valid JSON object
-export async function generate(prompt, { temperature = 0.3, maxTokens = 500, json = false } = {}) {
+// Groq's free tier rate-limits per minute; wait out short limits once instead of failing
+const MAX_RETRY_WAIT_SECONDS = 10;
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+export async function generate(prompt, options = {}) {
+  try {
+    return await requestGroq(prompt, options);
+  } catch (err) {
+    if (err.message !== 'rate_limited' || !(err.retryAfter <= MAX_RETRY_WAIT_SECONDS)) throw err;
+    await sleep(err.retryAfter * 1000);
+    return requestGroq(prompt, options);
+  }
+}
+
+async function requestGroq(prompt, { temperature = 0.3, maxTokens = 500, json = false } = {}) {
   if (!groqKey()) throw new Error('GROQ_API_KEY is not set on the server');
   const model = groqModel();
   const reasoning = isReasoningModel(model);
@@ -50,13 +64,17 @@ export async function generate(prompt, { temperature = 0.3, maxTokens = 500, jso
       model,
       messages: [{ role: 'user', content: prompt }],
       temperature,
-      max_tokens: reasoning ? maxTokens + 1024 : maxTokens,
+      max_tokens: reasoning ? maxTokens + 512 : maxTokens,
       ...(reasoning && { reasoning_effort: 'low' }),
       ...(json && { response_format: { type: 'json_object' } }),
     }),
   });
 
-  if (response.status === 429) throw new Error('rate_limited');
+  if (response.status === 429) {
+    const err = new Error('rate_limited');
+    err.retryAfter = Number(response.headers.get('retry-after')) || Infinity;
+    throw err;
+  }
   if (!response.ok) throw new Error(`Groq API error ${response.status}: ${await errorText(response)}`);
 
   const data = await response.json();
