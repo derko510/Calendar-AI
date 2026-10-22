@@ -209,6 +209,9 @@ router.post('/interpret', async (req, res) => {
 
     const prompt = `Today is ${today}. You are a calendar assistant. Read the user's message and decide what they want.
 
+Date guide (use these dates; do not work out weekdays yourself):
+${dateGuide(timeZone)}
+
 Calendar events (numbered):
 ${eventLines || '(none)'}
 
@@ -226,7 +229,7 @@ Respond with ONLY one JSON object in this shape:
 - intent "create": the user wants to add one or more events. Fill "events".
   title: short and clean, spelling fixed, without the date, time, place, or words like "create"/"schedule".
   location: the place with spelling fixed, or "". description: "" unless extra details were given.
-  Resolve relative dates ("tomorrow", "next friday") from today. Use ${year} if no year is given.
+  Take relative dates ("tomorrow", "friday", "next friday") from the date guide. Use ${year} if no year is given.
   24h times (7 pm = 19:00). endTime = startTime + 1 hour unless stated.
 - intent "delete": the user wants to remove events. Put the numbers of the matching events from the list in "deleteIndexes".
 - intent "question": anything else. Put a concise answer in "answer" using only the events above,
@@ -353,6 +356,30 @@ function safeTimeZone(timeZone) {
 }
 
 // The server runs in UTC; resolve "today" in the user's own time zone so "tomorrow"/"Friday" land on the right day
+// Small models get weekday math wrong, so spell out the dates relative words refer to.
+// Weeks run Monday–Sunday: "friday" is the next Friday after today; "next friday" is the one in next week.
+function dateGuide(timeZone) {
+  const tz = safeTimeZone(timeZone);
+  const todayISO = new Date().toLocaleDateString('en-CA', { timeZone: tz });
+  const base = new Date(`${todayISO}T00:00:00Z`);
+  const plus = (days) => new Date(base.getTime() + days * 864e5);
+  const show = (d) => `${d.toISOString().slice(0, 10)} (${d.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' })})`;
+
+  const todayDow = base.getUTCDay();
+  const daysLeftThisWeek = 6 - ((todayDow + 6) % 7);
+  const names = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const order = [1, 2, 3, 4, 5, 6, 0];
+
+  const lines = [`today = ${show(plus(0))}`, `tomorrow = ${show(plus(1))}`];
+  for (const dow of order) {
+    const upcoming = ((dow - todayDow + 7) % 7) || 7;
+    const nextWeek = upcoming > daysLeftThisWeek ? upcoming : upcoming + 7;
+    lines.push(`${names[dow]} = ${show(plus(upcoming))}; next ${names[dow]} = ${show(plus(nextWeek))}`);
+  }
+  lines.push(`this weekend = ${show(plus((6 - todayDow + 7) % 7))} to ${show(plus(((6 - todayDow + 7) % 7) + 1))}`);
+  return lines.join('\n');
+}
+
 function userToday(timeZone) {
   const tz = safeTimeZone(timeZone);
   const now = new Date();
