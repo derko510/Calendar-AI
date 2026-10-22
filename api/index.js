@@ -20,6 +20,7 @@ import realCalendarRoutes from '../server/routes/realCalendar.js';
 import { requireAuth } from '../server/middleware/auth.js';
 import { requireJWTAuth } from '../server/middleware/jwtAuth.js';
 import { generateToken } from '../server/utils/jwt.js';
+import { groqKeyFingerprint, groqModel } from '../server/services/llm.js';
 
 // Import services
 import { CalendarSyncService } from '../server/services/calendarSync.js';
@@ -176,6 +177,9 @@ app.get('/api/health', (req, res) => {
     hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
     hasDatabaseUrl: !!process.env.DATABASE_URL,
     hasSessionSecret: !!process.env.SESSION_SECRET,
+    groqKey: groqKeyFingerprint(),
+    groqModel: groqModel(),
+    commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
     deployTime: new Date().toISOString()
   };
   
