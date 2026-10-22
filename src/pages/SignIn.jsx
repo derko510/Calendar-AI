@@ -76,7 +76,7 @@ const SignIn = ({ onLoginSuccess }) => {
 
   const handleGoogleSignIn = () => {
     if (!isGoogleConfigured) {
-      alert('Google OAuth is not configured locally. Add VITE_GOOGLE_CLIENT_ID to client/.env, then restart the frontend dev server.');
+      alert('Google OAuth is not configured locally. Add GOOGLE_CLIENT_ID to client/.env, then restart the frontend dev server.');
       return;
     }
 
@@ -126,7 +126,7 @@ const SignIn = ({ onLoginSuccess }) => {
               </button>
               <p className="text-sm text-muted">
                 {!isGoogleConfigured
-                  ? 'Google client ID missing (VITE_GOOGLE_CLIENT_ID).'
+                  ? 'Google client ID missing (set GOOGLE_CLIENT_ID).'
                   : !isGoogleReady
                   ? 'Loading Google sign-in…'
                   : 'Read & write access to your calendar.'}
