@@ -176,8 +176,9 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-  Browser --> VC[Vercel: client static build]
-  Browser --> VS[Vercel: server/api serverless]
+  Browser --> V["Vercel project (client/)"]
+  V --> VC[Static React build]
+  V --> VS["/api/* → api/index.js function"]
   VS --> PG[(Hosted PostgreSQL)]
   VS --> GAPI[Google APIs]
   VS --> LLMs[Gemini / Groq / OpenAI]

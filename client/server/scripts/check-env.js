@@ -1,4 +1,4 @@
-// Checks the backend's keys and connections from your machine: `npm run check-env` (reads server/.env).
+// Checks the backend's keys and connections from your machine: `npm run check-env` (reads client/.env).
 // Makes one tiny request to Groq and the database. Never prints secret values.
 import 'dotenv/config';
 import pg from 'pg';
@@ -31,7 +31,7 @@ async function checkDatabase() {
     );
     rows[0].users && rows[0].events
       ? ok('DATABASE_URL', 'connected, tables exist')
-      : fail('DATABASE_URL', 'connected, but tables are missing. Run: npx drizzle-kit push');
+      : fail('DATABASE_URL', 'connected, but tables are missing. Run: npm run db:push');
   } catch (err) {
     fail('DATABASE_URL', err.message);
   } finally {

@@ -1,10 +1,17 @@
 ### 🛠️ Installation Steps
 
-Install frontend and backend dependencies:
+The app and its API live in one project: `client/` (React app in `src/`, API in `api/` + `server/`).
 
 ```bash
-# Install frontend dependencies
-cd client && npm install
+cd client
+npm install
+cp .env.example .env      # fill in your keys
+npm run check-env         # tests the Groq key and database
+```
 
-# Install backend dependencies
-cd ../server && npm install
+Run it locally (two terminals):
+
+```bash
+npm run dev:api   # API on http://localhost:3001
+npm run dev       # app on http://localhost:5173 (proxies /api to the API)
+```

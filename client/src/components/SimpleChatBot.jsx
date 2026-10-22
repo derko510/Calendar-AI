@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../utils/apiBase';
 import { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader2 } from 'lucide-react';
 
@@ -29,7 +30,6 @@ const SimpleChatBot = () => {
 
   const checkConnection = async () => {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
       console.log('🔄 Checking connection to:', `${API_BASE_URL}/api/chat/health`);
       console.log('🌐 Current window.location.origin:', window.location.origin);
       
@@ -83,7 +83,6 @@ const SimpleChatBot = () => {
     setIsLoading(true);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
       console.log('💬 Sending message to:', `${API_BASE_URL}/api/chat/message`);
       
       const response = await fetch(`${API_BASE_URL}/api/chat/message`, {

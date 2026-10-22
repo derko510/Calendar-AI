@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../utils/apiBase';
 import { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader2, Database, TestTube } from 'lucide-react';
 
@@ -38,7 +39,6 @@ const TestRAGBot = () => {
     setIsLoading(true);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
       const response = await fetch(`${API_BASE_URL}/api/test-rag/chat`, {
         method: 'POST',
         headers: {

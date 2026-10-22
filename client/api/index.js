@@ -5,26 +5,26 @@ import helmet from 'helmet';
 import bodyParser from 'body-parser';
 import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
-import { specs } from '../src/config/swagger.js';
+import { specs } from '../server/src/config/swagger.js';
 import 'dotenv/config';
 
 // Import routes
-import authRoutes from '../src/routes/auth.js';
-import calendarRoutes from '../src/routes/calendar.js';
-import chatbotRoutes from '../src/routes/chatbot.js';
-import simpleChatRoutes from '../src/routes/simpleChatbot.js';
-import ragChatRoutes from '../src/routes/ragChatbot.js';
-import testRagRoutes from '../src/routes/testRag.js';
-import realCalendarRoutes from '../src/routes/realCalendar.js';
+import authRoutes from '../server/src/routes/auth.js';
+import calendarRoutes from '../server/src/routes/calendar.js';
+import chatbotRoutes from '../server/src/routes/chatbot.js';
+import simpleChatRoutes from '../server/src/routes/simpleChatbot.js';
+import ragChatRoutes from '../server/src/routes/ragChatbot.js';
+import testRagRoutes from '../server/src/routes/testRag.js';
+import realCalendarRoutes from '../server/src/routes/realCalendar.js';
 
 // Import middleware
-import { requireAuth } from '../src/middleware/auth.js';
-import { requireJWTAuth } from '../src/middleware/jwtAuth.js';
-import { generateToken } from '../src/utils/jwt.js';
+import { requireAuth } from '../server/src/middleware/auth.js';
+import { requireJWTAuth } from '../server/src/middleware/jwtAuth.js';
+import { generateToken } from '../server/src/utils/jwt.js';
 
 // Import services
-import { CalendarSyncService } from '../src/services/calendarSync.js';
-import { setupOllama } from '../src/utils/setupOllama.js';
+import { CalendarSyncService } from '../server/src/services/calendarSync.js';
+import { setupOllama } from '../server/src/utils/setupOllama.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -35,36 +35,24 @@ app.use(helmet({
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 }));
 
-// CORS configuration - must be before other middleware
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Swagger, etc.)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://localhost:3001',
-      'http://127.0.0.1:3001',
-      'https://derricks-calendar-ai.vercel.app'
-    ];
-    
-    console.log('🌐 CORS request from origin:', origin);
-    
-    if (allowedOrigins.includes(origin)) {
-      console.log('✅ Origin allowed:', origin);
-      return callback(null, true);
-    } else {
-      console.log('❌ Origin blocked:', origin);
-      return callback(new Error('Not allowed by CORS'), false);
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200
+// CORS: the frontend is served from this same deployment, so same-origin requests always pass;
+// the list covers local dev and the production domain
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://derricks-calendar-ai.vercel.app'
+];
+app.use(cors((req, callback) => {
+  const origin = req.headers.origin;
+  const sameOrigin = origin && new URL(origin).host === req.headers.host;
+  const allowed = !origin || sameOrigin || allowedOrigins.includes(origin);
+  callback(allowed ? null : new Error('Not allowed by CORS'), {
+    origin: allowed,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 200
+  });
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -118,7 +106,7 @@ app.use('/api/real-calendar', realCalendarRoutes); // Real calendar data sync
 // Test route for calendar sync (requires auth session)
 app.post('/api/test-sync', requireAuth, async (req, res) => {
   try {
-    const { CalendarSyncService } = await import('../src/services/calendarSync.js');
+    const { CalendarSyncService } = await import('../server/src/services/calendarSync.js');
     const syncService = new CalendarSyncService();
     
     const userId = req.user.id;
@@ -145,8 +133,8 @@ app.post('/api/test-sync', requireAuth, async (req, res) => {
 // Test route to check database without auth
 app.get('/api/test-db', async (req, res) => {
   try {
-    const { db } = await import('../src/db/connection.js');
-    const { calendarEvents, users } = await import('../src/db/schema.js');
+    const { db } = await import('../server/src/db/connection.js');
+    const { calendarEvents, users } = await import('../server/src/db/schema.js');
     
     const userCount = await db.select().from(users);
     const eventCount = await db.select().from(calendarEvents);
@@ -219,8 +207,8 @@ app.post('/api/real-calendar/sync-frontend-data', async (req, res) => {
     console.log('📧 User info:', userInfo);
     
     // Import database modules
-    const { db } = await import('../src/db/connection.js');
-    const { calendarEvents, users } = await import('../src/db/schema.js');
+    const { db } = await import('../server/src/db/connection.js');
+    const { calendarEvents, users } = await import('../server/src/db/schema.js');
     const { eq } = await import('drizzle-orm');
     
     // Create or get user based on email
@@ -443,13 +431,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// Start server
-app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-  
-  // Setup Ollama
-  await setupOllama();
-});
+// Local dev only: on Vercel this file is a serverless function and must not listen
+if (!process.env.VERCEL) {
+  app.listen(PORT, async () => {
+    console.log(`API running on http://localhost:${PORT}`);
+    await setupOllama();
+  });
+}
 
 export default app;

@@ -7,8 +7,26 @@
   "devCommand": "npm run dev",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/api-docs/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/api-docs",
+      "destination": "/api/index"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30,
+      "includeFiles": "server/**"
+    }
+  }
 }

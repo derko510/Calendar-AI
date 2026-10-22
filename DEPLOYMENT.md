@@ -1,114 +1,52 @@
 # 🚀 Vercel Deployment Guide
 
+The app and the API deploy as **one Vercel project** from the `client/` folder:
+the React build is served as static files and `client/api/index.js` (the Express app) runs as a
+serverless function at `/api/*` on the same domain. No CORS setup or `VITE_API_URL` needed.
+
 ## Prerequisites
 
-1. **Vercel Account**: Sign up at [vercel.com](https://vercel.com)
-2. **Groq Account**: Sign up at [groq.com](https://groq.com) for free LLM API
-3. **Neon Account**: Sign up at [neon.tech](https://neon.tech) for free PostgreSQL
+1. **Vercel**: [vercel.com](https://vercel.com)
+2. **Groq** (free AI): API key from [console.groq.com/keys](https://console.groq.com/keys), starts with `gsk_`
+3. **Neon** (optional, free Postgres): [neon.tech](https://neon.tech)
 
-## Step 1: Set Up Database (Neon)
+## Deploy
 
-1. Go to [neon.tech](https://neon.tech) and create account
-2. Create new project: "calendar-ai"
-3. Copy the connection string (looks like):
-   ```
-   postgresql://username:password@hostname:5432/dbname
-   ```
-4. Save this for later
+1. In Vercel, open the project (or import the repo) and set **Settings → General → Root Directory** to `client`.
+2. Add the environment variables below under **Settings → Environment Variables**.
+3. Deploy. Pushing to `main` redeploys automatically when the project is linked to GitHub.
 
-## Step 2: Set Up LLM (Groq - Free)
+| Variable | Needed for |
+| --- | --- |
+| `VITE_GOOGLE_CLIENT_ID` | Google sign-in in the browser |
+| `GROQ_API_KEY` | the chat (required) |
+| `GROQ_MODEL` | optional, defaults to `llama-3.1-8b-instant` |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | server-side Google auth |
+| `SESSION_SECRET`, `JWT_SECRET` | signing sessions and tokens (`openssl rand -hex 32`) |
+| `DATABASE_URL` | optional; without it synced events are kept in memory |
+| `NODE_ENV` | `production` |
 
-1. Go to [groq.com](https://groq.com) and create account
-2. Go to API Keys section
-3. Create new API key
-4. Save the key (starts with `gsk_...`)
+Only `VITE_*` variables reach the browser; the rest stay on the server.
 
-## Step 3: Deploy Backend to Vercel
-
-```bash
-# 1. Install Vercel CLI
-npm i -g vercel
-
-# 2. Deploy backend
-cd server
-vercel
-
-# 3. Set environment variables in Vercel dashboard:
-# - DATABASE_URL: your_neon_connection_string
-# - GROQ_API_KEY: your_groq_api_key (required for the chat, free at console.groq.com)
-# - GROQ_MODEL: optional, defaults to llama-3.1-8b-instant
-# - GOOGLE_CLIENT_ID: your_google_client_id
-# - GOOGLE_CLIENT_SECRET: your_google_client_secret
-# - SESSION_SECRET: random_secure_string
-# - NODE_ENV: production
-```
-
-## Step 4: Deploy Frontend to Vercel
+## Database (optional)
 
 ```bash
-# 1. Update frontend .env
-cd ../client
-echo "VITE_API_URL=https://your-backend.vercel.app" > .env.production
-
-# 2. Deploy frontend
-vercel
-
-# 3. Set environment variables:
-# - VITE_API_URL: https://your-backend.vercel.app
-# - VITE_GOOGLE_CLIENT_ID: your_google_client_id
+cd client
+DATABASE_URL="your_neon_connection_string" npm run db:push
 ```
 
-## Step 5: Run Database Migrations
+## Check your keys
 
 ```bash
-# Connect to your deployed backend and run:
-cd server
-DATABASE_URL="your_neon_connection_string" npm run db:generate
-DATABASE_URL="your_neon_connection_string" npm run db:migrate
+cd client && npm run check-env
 ```
-
-## Step 6: Test Production
-
-1. Visit your frontend Vercel URL
-2. Sign in with Google
-3. Check if calendar sync works
-4. Test RAG queries
-
-## Environment Variables Summary
-
-### Backend (.env)
-```
-DATABASE_URL=postgresql://user:pass@host:5432/db
-GROQ_API_KEY=gsk_your_key_here
-# GROQ_MODEL=llama-3.1-8b-instant
-GOOGLE_CLIENT_ID=your_id
-GOOGLE_CLIENT_SECRET=your_secret
-SESSION_SECRET=random_secure_string
-NODE_ENV=production
-```
-
-### Frontend (.env.production)
-```
-VITE_API_URL=https://your-backend.vercel.app
-VITE_GOOGLE_CLIENT_ID=your_google_client_id
-```
-
-## Cost Breakdown
-
-- **Vercel**: Free tier (generous limits)
-- **Neon**: Free tier (512MB database)
-- **Groq**: Free tier (good for testing)
-- **Total**: $0/month for MVP
-
-## Scaling Options
-
-- **Vercel Pro**: $20/month (more bandwidth/builds)
-- **Neon Scale**: $19/month (larger database)
-- **OpenAI**: Pay-per-use (better quality responses)
 
 ## Troubleshooting
 
-1. **Build fails**: Check Node.js version compatibility
-2. **Database errors**: Verify connection string format
-3. **LLM errors**: Check API key and quota
-4. **CORS errors**: Verify frontend/backend URLs match
+1. **Chat shows an AI error**: the message includes Groq's reason (bad key, model not available, request too large).
+2. **"missing /api/real-calendar/interpret"**: the deployment is out of date; redeploy.
+3. **Database errors**: check the connection string, then run `npm run db:push`.
+
+## Cost
+
+Vercel, Neon and Groq free tiers: $0/month for the MVP.

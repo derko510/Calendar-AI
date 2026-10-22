@@ -1,10 +1,7 @@
+import { API_BASE_URL } from '../utils/apiBase';
 import { useState, useEffect, useRef } from 'react';
 import { ArrowUp, Loader2, Calendar, RefreshCw, Clock, MapPin, Trash2, X } from 'lucide-react';
 import googleCalendarService from '../services/googleCalendar';
-
-// Local dev talks to the local server; the deployed site talks to the deployed one
-const getApiBaseUrl = () =>
-  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3001' : 'https://server-nu-eight-16.vercel.app');
 
 const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCreated }) => {
   const suggestedPrompts = [
@@ -54,7 +51,6 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
 
     setIsSyncing(true);
     try {
-      const API_BASE_URL = getApiBaseUrl();
 
       // Extract user info from credential
       const userInfo = {
@@ -347,7 +343,6 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
 
   // The AI decides what the message means: create events, delete events, or answer a question
   const interpretMessage = async (message) => {
-    const API_BASE_URL = getApiBaseUrl();
     const res = await fetch(`${API_BASE_URL}/api/real-calendar/interpret`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../utils/apiBase';
 import { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader2, Database, RefreshCw } from 'lucide-react';
 import authService from '../services/authService';
@@ -35,7 +36,6 @@ const RAGChatBot = ({ backendAuth }) => {
 
     setIsSyncing(true);
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
       
       // Check if we have a valid JWT token
       if (!authService.jwtToken) {
@@ -121,7 +121,6 @@ const RAGChatBot = ({ backendAuth }) => {
     setIsLoading(true);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
       const response = await fetch(`${API_BASE_URL}/api/rag-chat/message`, {
         method: 'POST',
         headers: authService.getAuthHeaders(),

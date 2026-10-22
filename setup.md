@@ -1,104 +1,42 @@
 # Calendar AI Setup Guide
 
-## 🚨 Current Issue Fix
-
-The error you're seeing is because the backend authentication isn't properly configured. Here's how to fix it:
-
-## 1. 📊 Set up PostgreSQL Database
+## 1. Install
 
 ```bash
-# Install PostgreSQL (if not already installed)
-sudo apt install postgresql postgresql-contrib
-
-# Create database
-sudo -u postgres createuser --interactive
-# Answer: y (superuser)
-# Username: your_username
-
-sudo -u postgres createdb calendar_ai
-
-# Test connection
-psql -d calendar_ai -c "SELECT version();"
-```
-
-## 2. 🔑 Configure Environment Variables
-
-Edit `/home/derko/Calendar-AI/server/.env`:
-
-```bash
-# Database - Update with your actual credentials
-DATABASE_URL=postgresql://your_username:your_password@localhost:5432/calendar_ai
-
-# Google OAuth - Get from Google Cloud Console
-GOOGLE_CLIENT_ID=your_actual_google_client_id
-GOOGLE_CLIENT_SECRET=your_actual_google_client_secret
-
-# Session Secret - Generate a random string
-SESSION_SECRET=your_random_session_secret_here
-
-# Server
-PORT=3001
-
-# Ollama (Free LLM)
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2:3b
-```
-
-## 3. 🤖 Set up Ollama (Free LLM)
-
-```bash
-# Install Ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# Start Ollama service
-ollama serve
-
-# In another terminal, pull the model
-ollama pull llama3.2:3b
-```
-
-## 4. 🚀 Start the Services
-
-```bash
-# Terminal 1: Start Ollama
-ollama serve
-
-# Terminal 2: Start Backend
-cd /home/derko/Calendar-AI/server
+cd client
 npm install
-npm run dev
+cp .env.example .env
+```
 
-# Terminal 3: Start Frontend
-cd /home/derko/Calendar-AI/client
-npm install
+## 2. Fill in `client/.env`
+
+One file for the app and the API (only `VITE_*` values reach the browser):
+
+- `VITE_GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: from Google Cloud Console → APIs & Services → Credentials
+- `GROQ_API_KEY`: from [console.groq.com/keys](https://console.groq.com/keys)
+- `SESSION_SECRET`, `JWT_SECRET`: each from `openssl rand -hex 32`
+- `DATABASE_URL`: optional Postgres connection string
+
+Then run `npm run check-env` to test the Groq key and database.
+
+## 3. Start
+
+```bash
+# Terminal 1: API on http://localhost:3001
+npm run dev:api
+
+# Terminal 2: app on http://localhost:5173 (proxies /api to the API)
 npm run dev
 ```
 
-## 5. 🔧 Test the Setup
+## 4. Test
 
-1. Go to `http://localhost:5173`
-2. Sign in with Google
-3. Try asking the chatbot: "What events do I have this week?"
+1. Go to `http://localhost:5173` and sign in with Google
+2. Ask the chat: "What events do I have this week?"
+3. Or create one: "gym tomorrow at 6pm"
 
-## 🆘 Common Issues
+## Common issues
 
-- **Database connection failed**: Check PostgreSQL is running and credentials are correct
-- **Google auth failed**: Verify Google OAuth credentials in `.env`
-- **Ollama not responding**: Make sure `ollama serve` is running
-- **CORS errors**: Backend should be on port 3001, frontend on 5173
-
-## 🔍 Debug Commands
-
-```bash
-# Check if PostgreSQL is running
-sudo systemctl status postgresql
-
-# Check if Ollama is running
-curl http://localhost:11434/api/tags
-
-# Check backend logs
-cd /home/derko/Calendar-AI/server && npm run dev
-
-# Test database connection
-psql -d calendar_ai -c "SELECT NOW();"
-```
+- **Chat shows an AI error**: run `npm run check-env`; it prints Groq's reason
+- **Google auth failed**: check the Google OAuth values in `.env` and that `http://localhost:5173` is an authorized origin
+- **Database errors**: check `DATABASE_URL`, then `npm run db:push`
