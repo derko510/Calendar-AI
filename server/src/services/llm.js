@@ -14,6 +14,16 @@ export const llmProvider = () => {
   return 'ollama';
 };
 
+// Both APIs return {"error":{"message":"..."}}; fall back to the raw body
+async function errorText(response) {
+  const body = await response.text();
+  try {
+    return JSON.parse(body).error?.message || body;
+  } catch {
+    return body;
+  }
+}
+
 // json: true forces the model to return a single valid JSON object
 export async function generate(prompt, { temperature = 0.3, maxTokens = 500, json = false } = {}) {
   const provider = llmProvider();
@@ -37,7 +47,7 @@ export async function generate(prompt, { temperature = 0.3, maxTokens = 500, jso
     });
 
     if (response.status === 429) throw new Error('rate_limited');
-    if (!response.ok) throw new Error(`Gemini API error ${response.status}: ${await response.text()}`);
+    if (!response.ok) throw new Error(`Gemini API error ${response.status}: ${await errorText(response)}`);
 
     const data = await response.json();
     return (data.candidates?.[0]?.content?.parts || [])
@@ -63,7 +73,7 @@ export async function generate(prompt, { temperature = 0.3, maxTokens = 500, jso
     });
 
     if (response.status === 429) throw new Error('rate_limited');
-    if (!response.ok) throw new Error(`Groq API error ${response.status}: ${await response.text()}`);
+    if (!response.ok) throw new Error(`Groq API error ${response.status}: ${await errorText(response)}`);
 
     const data = await response.json();
     return data.choices?.[0]?.message?.content ?? '';

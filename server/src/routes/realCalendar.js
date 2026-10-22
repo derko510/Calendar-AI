@@ -234,15 +234,15 @@ Respond with ONLY one JSON object in this shape:
   If nothing matches, say so briefly.
 Leave fields that don't apply to the intent empty.`;
 
+    // Retry once only when the model answered with unusable JSON; provider errors (bad key, network) go straight to the catch below
     let lastError;
     for (let attempt = 0; attempt < 2; attempt++) {
+      const raw = await generate(prompt, { temperature: 0, maxTokens: 800, json: true });
       try {
-        const raw = await generate(prompt, { temperature: 0, maxTokens: 800, json: true });
         const result = toInterpretation(JSON.parse(raw), listed);
         if (result) return res.json({ success: true, ...result });
         lastError = new Error(`Unusable LLM output: ${raw}`);
       } catch (err) {
-        if (err.message === 'rate_limited') throw err;
         lastError = err;
       }
     }

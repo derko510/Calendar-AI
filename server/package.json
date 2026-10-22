@@ -9,6 +9,7 @@
     "dev": "nodemon server.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "check-env": "node scripts/check-env.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
