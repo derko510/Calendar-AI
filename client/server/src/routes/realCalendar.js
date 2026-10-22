@@ -236,7 +236,14 @@ Leave fields that don't apply to the intent empty.`;
     // Retry once only when the model answered with unusable JSON; provider errors (bad key, network) go straight to the catch below
     let lastError;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const raw = await generate(prompt, { temperature: 0, maxTokens: 800, json: true });
+      let raw;
+      try {
+        raw = await generate(prompt, { temperature: 0, maxTokens: 800, json: true });
+      } catch (err) {
+        // A rate limit on the retry would hide the real problem (the first reply was unusable)
+        if (attempt > 0 && err.message === 'rate_limited') break;
+        throw err;
+      }
       try {
         const result = toInterpretation(JSON.parse(raw), listed);
         if (result) return res.json({ success: true, ...result });
@@ -274,7 +281,8 @@ function nearestEvents(events, limit) {
 function toInterpretation(output, listedEvents) {
   if (output?.intent === 'create') {
     const events = (Array.isArray(output.events) ? output.events : [])
-      .filter(e => e?.title && isDateTime(e.date, e.startTime))
+      .map(e => ({ ...e, date: toDate(e?.date), startTime: toTime(e?.startTime), endTime: toTime(e?.endTime) }))
+      .filter(e => e.title && isDateTime(e.date, e.startTime))
       .map(e => ({
         title: String(e.title).trim(),
         date: e.date,
@@ -296,6 +304,17 @@ function toInterpretation(output, listedEvents) {
     return { intent: 'question', answer: String(output.answer).trim() };
   }
   return null;
+}
+
+// Models sometimes add seconds ("19:00:00") or a time to the date ("2026-10-23T19:00"); keep the parts we use
+function toDate(value) {
+  return typeof value === 'string' ? value.trim().slice(0, 10) : value;
+}
+
+function toTime(value) {
+  if (typeof value !== 'string') return value;
+  const time = value.trim();
+  return time.length === 4 && time[1] === ':' ? `0${time}` : time.slice(0, 5);
 }
 
 function isDateTime(date, time) {
