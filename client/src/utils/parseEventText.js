@@ -11,10 +11,11 @@ const findDate = (text, now) => {
   const lower = text.toLowerCase();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  let m = lower.match(/\b(today|tonight)\b/);
+  let m = lower.match(/\b(today|tonight|tonite|tday)\b/);
   if (m) return { date: today, match: m[0] };
 
-  m = lower.match(/\btomorrow\b/);
+  // Also catches common typos/shorthand: tomorow, tommorow, tomorw, tmrw, tmr, 2morrow
+  m = lower.match(/\b(?:tom+or+ow+|tom+or+w|tmrw?|2mor+ow)\b/);
   if (m) return { date: new Date(today.getTime() + 864e5), match: m[0] };
 
   const monthPattern = MONTHS.map(name => `${name.slice(0, 3)}(?:${name.slice(3)})?`).join('|');
@@ -79,6 +80,13 @@ export const parseEventText = (text, now = new Date()) => {
   if (locHit) {
     location = locHit[1].replace(/\s+(of|on|the|&)\s*$/i, '').trim();
     rest = rest.replace(locHit[0], ' ');
+  } else {
+    // Lowercase place at the end of the message: "homework at library hayward"
+    const tailHit = rest.match(/\s(?:at|in|@)\s+(?!(?:the\s+)?(?:morning|afternoon|evening|night)\b)([a-z][\w'&.-]*(?:\s+[\w'&.-]+){0,4})\s*$/i);
+    if (tailHit) {
+      location = tailHit[1].replace(/\b\w/g, c => c.toUpperCase());
+      rest = rest.replace(tailHit[0], ' ');
+    }
   }
 
   if (!quoted) {

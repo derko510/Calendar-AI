@@ -240,7 +240,7 @@ Message: ${message}
 
 Output format: [{"title":"...","date":"YYYY-MM-DD","startTime":"HH:MM","endTime":"HH:MM","description":"...","location":"..."}]
 
-Rules: use ${year} if year not given, 24h time (2pm=14:00), endTime MUST be startTime+1hr if not explicitly stated (never leave endTime empty), empty string for description/location if not given.
+Rules: use ${year} if year not given, 24h time (2pm=14:00), endTime MUST be startTime+1hr if not explicitly stated (never leave endTime empty), empty string for description/location if not given. Interpret misspelled words ("tomorow" = tomorrow) and fix obvious spelling mistakes in title and location. Never put date/time words in the title; put places in location.
 
 JSON array:`;
 
