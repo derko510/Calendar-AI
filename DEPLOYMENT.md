@@ -35,13 +35,12 @@ vercel
 
 # 3. Set environment variables in Vercel dashboard:
 # - DATABASE_URL: your_neon_connection_string
-# - GEMINI_API_KEY: your_gemini_api_key (preferred, free at aistudio.google.com)
-# - GROQ_API_KEY: your_groq_api_key (optional alternative)
+# - GROQ_API_KEY: your_groq_api_key (required for the chat, free at console.groq.com)
+# - GROQ_MODEL: optional, defaults to llama-3.1-8b-instant
 # - GOOGLE_CLIENT_ID: your_google_client_id
 # - GOOGLE_CLIENT_SECRET: your_google_client_secret
 # - SESSION_SECRET: random_secure_string
 # - NODE_ENV: production
-# - LLM_PROVIDER: gemini (or groq / ollama; optional, picks by available key)
 ```
 
 ## Step 4: Deploy Frontend to Vercel
@@ -80,15 +79,12 @@ DATABASE_URL="your_neon_connection_string" npm run db:migrate
 ### Backend (.env)
 ```
 DATABASE_URL=postgresql://user:pass@host:5432/db
-GEMINI_API_KEY=your_gemini_key
-# GEMINI_MODEL=gemini-flash-latest
-# GROQ_API_KEY=gsk_your_key_here
-# GROQ_MODEL=openai/gpt-oss-120b
+GROQ_API_KEY=gsk_your_key_here
+# GROQ_MODEL=llama-3.1-8b-instant
 GOOGLE_CLIENT_ID=your_id
 GOOGLE_CLIENT_SECRET=your_secret
 SESSION_SECRET=random_secure_string
 NODE_ENV=production
-LLM_PROVIDER=gemini
 ```
 
 ### Frontend (.env.production)

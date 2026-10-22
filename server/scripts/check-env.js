@@ -1,5 +1,5 @@
 // Checks the backend's keys and connections from your machine: `npm run check-env` (reads server/.env).
-// Makes one tiny request to each configured AI provider and the database. Never prints secret values.
+// Makes one tiny request to Groq and the database. Never prints secret values.
 import 'dotenv/config';
 import pg from 'pg';
 
@@ -8,28 +8,18 @@ const ok = (name, detail = '') => console.log(`  ✅ ${name}${detail ? ` — ${d
 const fail = (name, detail) => { failures++; console.log(`  ❌ ${name} — ${detail}`); };
 const skip = (name, detail) => console.log(`  ⚪ ${name} — ${detail}`);
 
-async function checkAI(provider) {
-  const { generate, llmProvider } = await import('../src/services/llm.js');
-  const previous = process.env.LLM_PROVIDER;
-  process.env.LLM_PROVIDER = provider;
+async function checkGroq() {
+  if (!process.env.GROQ_API_KEY) return fail('GROQ_API_KEY', 'not set (the chat needs it)');
+  const { generate, groqModel } = await import('../src/services/llm.js');
   try {
     const raw = await generate('Respond with ONLY this JSON object: {"ok":true}', { temperature: 0, maxTokens: 20, json: true });
     JSON.parse(raw).ok === true
-      ? ok(provider, `${modelFor(provider)} answered`)
-      : fail(provider, `unexpected reply: ${raw.slice(0, 120)}`);
+      ? ok('GROQ_API_KEY', `${groqModel()} answered`)
+      : fail('GROQ_API_KEY', `unexpected reply: ${raw.slice(0, 120)}`);
   } catch (err) {
-    fail(provider, err.message === 'rate_limited' ? 'rate limited (key works, try again later)' : String(err.message).slice(0, 300));
-  } finally {
-    if (previous === undefined) delete process.env.LLM_PROVIDER;
-    else process.env.LLM_PROVIDER = previous;
+    fail('GROQ_API_KEY', err.message === 'rate_limited' ? 'rate limited (key works, try again later)' : String(err.message).slice(0, 300));
   }
-  return llmProvider;
 }
-
-const modelFor = (provider) => ({
-  gemini: process.env.GEMINI_MODEL || 'gemini-flash-latest',
-  groq: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
-}[provider]);
 
 async function checkDatabase() {
   if (!process.env.DATABASE_URL) return skip('DATABASE_URL', 'not set (chat still works; events are kept in memory)');
@@ -49,12 +39,8 @@ async function checkDatabase() {
   }
 }
 
-console.log('\nAI providers');
-const { llmProvider } = await import('../src/services/llm.js');
-if (process.env.GEMINI_API_KEY) await checkAI('gemini'); else skip('gemini', 'GEMINI_API_KEY not set');
-if (process.env.GROQ_API_KEY) await checkAI('groq'); else skip('groq', 'GROQ_API_KEY not set');
-console.log(`  → the chat will use: ${llmProvider()}${process.env.LLM_PROVIDER ? ' (from LLM_PROVIDER)' : ''}`);
-if (llmProvider() === 'ollama') console.log('    (Ollama only works locally; on Vercel set GEMINI_API_KEY or GROQ_API_KEY)');
+console.log('\nAI (Groq)');
+await checkGroq();
 
 console.log('\nDatabase');
 await checkDatabase();

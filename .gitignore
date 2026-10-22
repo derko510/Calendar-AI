@@ -158,3 +158,6 @@ Desktop.ini
 
 # Linux
 *~
+
+# Templates with placeholder values only
+!.env.example
