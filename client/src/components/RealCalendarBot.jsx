@@ -334,7 +334,9 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
         type: 'bot',
         content: error.message === 'rate_limited'
           ? 'AI is rate limited — wait a moment and try again.'
-          : 'I could not reach the AI. Try again in a moment.',
+          : error instanceof TypeError
+            ? 'I could not reach the server. Check your connection and try again.'
+            : error.message,
         timestamp: new Date(),
         isError: true
       }]);
@@ -351,8 +353,9 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, events: events || [], timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.message || 'AI error');
+    if (res.status === 404) throw new Error('The server is missing /api/real-calendar/interpret. Redeploy the backend.');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) throw new Error(data.message || `Server error ${res.status}`);
     return data;
   };
 
