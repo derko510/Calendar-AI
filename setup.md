@@ -3,12 +3,11 @@
 ## 1. Install
 
 ```bash
-cd client
 npm install
 cp .env.example .env
 ```
 
-## 2. Fill in `client/.env`
+## 2. Fill in `.env`
 
 One file for the app and the API (only `VITE_*` values reach the browser):
 

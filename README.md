@@ -1,9 +1,8 @@
 ### 🛠️ Installation Steps
 
-The app and its API live in one project: `client/` (React app in `src/`, API in `api/` + `server/`).
+One project at the repo root: React app in `src/`, API in `api/index.js` with its code in `server/`.
 
 ```bash
-cd client
 npm install
 cp .env.example .env      # fill in your keys
 npm run check-env         # tests the Groq key and database

@@ -1,4 +1,4 @@
-// Checks the backend's keys and connections from your machine: `npm run check-env` (reads client/.env).
+// Checks the backend's keys and connections from your machine: `npm run check-env` (reads .env).
 // Makes one tiny request to Groq and the database. Never prints secret values.
 import 'dotenv/config';
 import pg from 'pg';
@@ -10,7 +10,7 @@ const skip = (name, detail) => console.log(`  ⚪ ${name} — ${detail}`);
 
 async function checkGroq() {
   if (!process.env.GROQ_API_KEY) return fail('GROQ_API_KEY', 'not set (the chat needs it)');
-  const { generate, groqModel } = await import('../src/services/llm.js');
+  const { generate, groqModel } = await import('../server/services/llm.js');
   try {
     const raw = await generate('Respond with ONLY this JSON object: {"ok":true}', { temperature: 0, maxTokens: 20, json: true });
     JSON.parse(raw).ok === true

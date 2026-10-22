@@ -1,7 +1,7 @@
 # 🚀 Vercel Deployment Guide
 
-The app and the API deploy as **one Vercel project** from the `client/` folder:
-the React build is served as static files and `client/api/index.js` (the Express app) runs as a
+The app and the API deploy as **one Vercel project** from the repo root:
+the React build is served as static files and `api/index.js` (the Express app) runs as a
 serverless function at `/api/*` on the same domain. No CORS setup or `VITE_API_URL` needed.
 
 ## Prerequisites
@@ -12,7 +12,7 @@ serverless function at `/api/*` on the same domain. No CORS setup or `VITE_API_U
 
 ## Deploy
 
-1. In Vercel, open the project (or import the repo) and set **Settings → General → Root Directory** to `client`.
+1. In Vercel, open the project (or import the repo) and leave **Settings → General → Root Directory** empty (the repo root).
 2. Add the environment variables below under **Settings → Environment Variables**.
 3. Deploy. Pushing to `main` redeploys automatically when the project is linked to GitHub.
 
@@ -31,14 +31,13 @@ Only `VITE_*` variables reach the browser; the rest stay on the server.
 ## Database (optional)
 
 ```bash
-cd client
 DATABASE_URL="your_neon_connection_string" npm run db:push
 ```
 
 ## Check your keys
 
 ```bash
-cd client && npm run check-env
+npm run check-env
 ```
 
 ## Troubleshooting

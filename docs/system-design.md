@@ -26,7 +26,6 @@ flowchart LR
     RAG[RAGService]
     Sync[CalendarSyncService]
     LLM[CloudLLMService / OllamaService]
-    Cron[node-cron<br/>sync every 30 min]
   end
 
   DB[(PostgreSQL<br/>Drizzle ORM)]
@@ -49,7 +48,6 @@ flowchart LR
   RAG --> LLM & Sync & DB
   Sync --> GoogleAPI
   Sync --> DB
-  Cron --> Sync
   LLM --> CloudLLM
   LLM -.fallback.-> Ollama
 ```
@@ -176,7 +174,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-  Browser --> V["Vercel project (client/)"]
+  Browser --> V["Vercel project (repo root)"]
   V --> VC[Static React build]
   V --> VS["/api/* → api/index.js function"]
   VS --> PG[(Hosted PostgreSQL)]

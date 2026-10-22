@@ -1,5 +1,5 @@
 {
-  "name": "calendar-ai-frontend",
+  "name": "calendar-ai",
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",

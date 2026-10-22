@@ -3,28 +3,26 @@ import cors from 'cors';
 import session from 'express-session';
 import helmet from 'helmet';
 import bodyParser from 'body-parser';
-import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
-import { specs } from '../server/src/config/swagger.js';
+import { specs } from '../server/config/swagger.js';
 import 'dotenv/config';
 
 // Import routes
-import authRoutes from '../server/src/routes/auth.js';
-import calendarRoutes from '../server/src/routes/calendar.js';
-import chatbotRoutes from '../server/src/routes/chatbot.js';
-import simpleChatRoutes from '../server/src/routes/simpleChatbot.js';
-import ragChatRoutes from '../server/src/routes/ragChatbot.js';
-import testRagRoutes from '../server/src/routes/testRag.js';
-import realCalendarRoutes from '../server/src/routes/realCalendar.js';
+import authRoutes from '../server/routes/auth.js';
+import calendarRoutes from '../server/routes/calendar.js';
+import chatbotRoutes from '../server/routes/chatbot.js';
+import simpleChatRoutes from '../server/routes/simpleChatbot.js';
+import ragChatRoutes from '../server/routes/ragChatbot.js';
+import testRagRoutes from '../server/routes/testRag.js';
+import realCalendarRoutes from '../server/routes/realCalendar.js';
 
 // Import middleware
-import { requireAuth } from '../server/src/middleware/auth.js';
-import { requireJWTAuth } from '../server/src/middleware/jwtAuth.js';
-import { generateToken } from '../server/src/utils/jwt.js';
+import { requireAuth } from '../server/middleware/auth.js';
+import { requireJWTAuth } from '../server/middleware/jwtAuth.js';
+import { generateToken } from '../server/utils/jwt.js';
 
 // Import services
-import { CalendarSyncService } from '../server/src/services/calendarSync.js';
-import { setupOllama } from '../server/src/utils/setupOllama.js';
+import { CalendarSyncService } from '../server/services/calendarSync.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -106,7 +104,7 @@ app.use('/api/real-calendar', realCalendarRoutes); // Real calendar data sync
 // Test route for calendar sync (requires auth session)
 app.post('/api/test-sync', requireAuth, async (req, res) => {
   try {
-    const { CalendarSyncService } = await import('../server/src/services/calendarSync.js');
+    const { CalendarSyncService } = await import('../server/services/calendarSync.js');
     const syncService = new CalendarSyncService();
     
     const userId = req.user.id;
@@ -133,8 +131,8 @@ app.post('/api/test-sync', requireAuth, async (req, res) => {
 // Test route to check database without auth
 app.get('/api/test-db', async (req, res) => {
   try {
-    const { db } = await import('../server/src/db/connection.js');
-    const { calendarEvents, users } = await import('../server/src/db/schema.js');
+    const { db } = await import('../server/db/connection.js');
+    const { calendarEvents, users } = await import('../server/db/schema.js');
     
     const userCount = await db.select().from(users);
     const eventCount = await db.select().from(calendarEvents);
@@ -207,8 +205,8 @@ app.post('/api/real-calendar/sync-frontend-data', async (req, res) => {
     console.log('📧 User info:', userInfo);
     
     // Import database modules
-    const { db } = await import('../server/src/db/connection.js');
-    const { calendarEvents, users } = await import('../server/src/db/schema.js');
+    const { db } = await import('../server/db/connection.js');
+    const { calendarEvents, users } = await import('../server/db/schema.js');
     const { eq } = await import('drizzle-orm');
     
     // Create or get user based on email
@@ -419,12 +417,6 @@ app.get('/api/env-test', (req, res) => {
 // Set up periodic calendar sync (every 30 minutes)
 const calendarSync = new CalendarSyncService();
 
-cron.schedule('*/30 * * * *', async () => {
-  console.log('Running periodic calendar sync...');
-  // This would need to be implemented to sync all users
-  // For now, sync happens when user triggers it manually
-});
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -433,10 +425,7 @@ app.use((err, req, res, next) => {
 
 // Local dev only: on Vercel this file is a serverless function and must not listen
 if (!process.env.VERCEL) {
-  app.listen(PORT, async () => {
-    console.log(`API running on http://localhost:${PORT}`);
-    await setupOllama();
-  });
+  app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
 }
 
 export default app;

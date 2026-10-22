@@ -161,3 +161,6 @@ Desktop.ini
 
 # Templates with placeholder values only
 !.env.example
+
+# Local AI assistant instructions (kept out of the repo)
+CLAUDE.md
