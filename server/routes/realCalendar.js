@@ -198,13 +198,12 @@ router.post('/interpret', async (req, res) => {
     const timeZone = safeTimeZone(req.body.timeZone);
     const { today, year } = userToday(timeZone);
 
-    const listed = events.filter(e => e.startDatetime || e.start?.dateTime || e.start?.date);
+    const listed = nearestEvents(events, MAX_PROMPT_EVENTS);
     const eventLines = listed
       .map((e, i) => {
-        const start = new Date(e.startDatetime || e.start?.dateTime || e.start?.date);
-        const t = start.toLocaleString('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-        const loc = e.location ? ` | ${e.location}` : '';
-        return `[${i}] ${e.summary || e.title || 'Untitled'} | ${t}${loc}`;
+        const t = eventStart(e).toLocaleString('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        const loc = e.location ? ` | ${clip(e.location, 40)}` : '';
+        return `[${i}] ${clip(e.summary || e.title || 'Untitled', 60)} | ${t}${loc}`;
       })
       .join('\n');
 
@@ -255,6 +254,21 @@ Leave fields that don't apply to the intent empty.`;
     res.status(500).json({ success: false, message: `AI error: ${String(err.message).slice(0, 300)}` });
   }
 });
+
+// Groq's free tier allows ~8k tokens a minute, so the prompt carries only the events closest to today
+const MAX_PROMPT_EVENTS = 80;
+
+const eventStart = (e) => new Date(e.startDatetime || e.start?.dateTime || e.start?.date);
+const clip = (text, max) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+function nearestEvents(events, limit) {
+  const now = Date.now();
+  return events
+    .filter(e => !Number.isNaN(eventStart(e).getTime()))
+    .sort((a, b) => Math.abs(eventStart(a) - now) - Math.abs(eventStart(b) - now))
+    .slice(0, limit)
+    .sort((a, b) => eventStart(a) - eventStart(b));
+}
 
 // Check the LLM's JSON before the client acts on it; null means retry
 function toInterpretation(output, listedEvents) {
