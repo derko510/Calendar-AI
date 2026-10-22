@@ -193,7 +193,7 @@ router.post('/chat', async (req, res) => {
 // or ask a question, and returns structured data for that intent. No keyword or regex parsing.
 router.post('/interpret', async (req, res) => {
   try {
-    const { message, events = [] } = req.body;
+    const { message, events = [], history = [] } = req.body;
     if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
     const timeZone = safeTimeZone(req.body.timeZone);
     const { today, year } = userToday(timeZone);
@@ -212,7 +212,7 @@ router.post('/interpret', async (req, res) => {
 Calendar events (numbered):
 ${eventLines || '(none)'}
 
-User message: ${message}
+${conversation(history)}User message: ${message}
 
 The message may contain typos and slang ("tomorow", "tmrw", "libary"). Interpret them the way a person would.
 
@@ -220,7 +220,8 @@ Respond with ONLY one JSON object in this shape:
 {"intent":"create" | "delete" | "question",
  "events":[{"title":"...","date":"YYYY-MM-DD","startTime":"HH:MM","endTime":"HH:MM","description":"...","location":"..."}],
  "deleteIndexes":[0],
- "answer":"..."}
+ "answer":"...",
+ "eventIndexes":[0]}
 
 - intent "create": the user wants to add one or more events. Fill "events".
   title: short and clean, spelling fixed, without the date, time, place, or words like "create"/"schedule".
@@ -228,7 +229,11 @@ Respond with ONLY one JSON object in this shape:
   Resolve relative dates ("tomorrow", "next friday") from today. Use ${year} if no year is given.
   24h times (7 pm = 19:00). endTime = startTime + 1 hour unless stated.
 - intent "delete": the user wants to remove events. Put the numbers of the matching events from the list in "deleteIndexes".
-- intent "question": anything else. Put a concise answer in "answer" using only the events above.
+- intent "question": anything else. Put a concise answer in "answer" using only the events above,
+  and put the numbers of the events the answer is about in "eventIndexes" (at most 3).
+  Name the event and write the date in words, e.g. "Your next interview is Interview with Ampersand on Monday, Oct 26 at 1:30 PM."
+  Never write ISO dates or 24h times in the answer.
+  Use the recent conversation for follow-ups like "what is it" or "when is that".
   If asked about "class", "school", "lecture" or "course", look for academic events (course names, instructor names).
   If nothing matches, say so briefly.
 Leave fields that don't apply to the intent empty.`;
@@ -277,6 +282,24 @@ function nearestEvents(events, limit) {
     .sort((a, b) => eventStart(a) - eventStart(b));
 }
 
+// Map the model's event numbers back to real event ids
+function idsAt(indexes, listedEvents) {
+  const ids = (Array.isArray(indexes) ? indexes : [])
+    .map(i => listedEvents[i])
+    .filter(Boolean)
+    .map(e => e.id || e.googleEventId);
+  return [...new Set(ids)];
+}
+
+// The last few chat turns, so follow-ups like "what is it" have context
+function conversation(history) {
+  const turns = (Array.isArray(history) ? history : [])
+    .slice(-6)
+    .filter(t => t?.text)
+    .map(t => `${t.role === 'user' ? 'User' : 'Assistant'}: ${clip(String(t.text), 300)}`);
+  return turns.length ? `Recent conversation:\n${turns.join('\n')}\n\n` : '';
+}
+
 // Check the LLM's JSON before the client acts on it; null means retry
 function toInterpretation(output, listedEvents) {
   if (output?.intent === 'create') {
@@ -294,14 +317,10 @@ function toInterpretation(output, listedEvents) {
     return events.length > 0 ? { intent: 'create', events } : null;
   }
   if (output?.intent === 'delete') {
-    const ids = (Array.isArray(output.deleteIndexes) ? output.deleteIndexes : [])
-      .map(i => listedEvents[i])
-      .filter(Boolean)
-      .map(e => e.id || e.googleEventId);
-    return { intent: 'delete', eventIds: [...new Set(ids)] };
+    return { intent: 'delete', eventIds: idsAt(output.deleteIndexes, listedEvents) };
   }
   if (output?.intent === 'question' && output.answer) {
-    return { intent: 'question', answer: String(output.answer).trim() };
+    return { intent: 'question', answer: String(output.answer).trim(), eventIds: idsAt(output.eventIndexes, listedEvents).slice(0, 3) };
   }
   return null;
 }

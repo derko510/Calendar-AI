@@ -316,11 +316,16 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
       } else if (result.intent === 'delete') {
         showDeleteConfirmation(result.eventIds);
       } else {
+        const wanted = new Set(result.eventIds || []);
+        const related = (events || [])
+          .filter(e => wanted.has(e.id || e.googleEventId))
+          .map(normalizeCalendarEvent);
         setMessages(prev => [...prev, {
           id: Date.now() + 1,
           type: 'bot',
           content: result.answer,
-          timestamp: new Date()
+          timestamp: new Date(),
+          events: related
         }]);
       }
     } catch (error) {
@@ -342,11 +347,17 @@ const RealCalendarBot = ({ userCredential, events, onEventsDeleted, onEventsCrea
   };
 
   // The AI decides what the message means: create events, delete events, or answer a question
+  // Earlier turns (not counting the message being sent) so the AI can follow up on them
+  const recentHistory = () => messages
+    .filter(m => (m.type === 'user' || m.type === 'bot') && !m.isError && m.content)
+    .slice(-6)
+    .map(m => ({ role: m.type === 'user' ? 'user' : 'assistant', text: m.content }));
+
   const interpretMessage = async (message) => {
     const res = await fetch(`${API_BASE_URL}/api/real-calendar/interpret`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, events: events || [], timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+      body: JSON.stringify({ message, events: events || [], history: recentHistory(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
     });
     if (res.status === 404) throw new Error('The server is missing /api/real-calendar/interpret. Redeploy the backend.');
     const data = await res.json().catch(() => ({}));

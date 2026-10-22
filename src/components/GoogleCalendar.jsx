@@ -6,6 +6,7 @@ import WeekView from './WeekView';
 import DayView from './DayView';
 import googleCalendarService from '../services/googleCalendar';
 import { getEventTone } from '../utils/eventColors';
+import EventTooltip from './EventTooltip';
 
 const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventClick, onSignOut, onDeleteEvent, userCredential }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -17,12 +18,7 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
   const [toast, setToast] = useState(null); // { message, id }
   const toastTimerRef = useRef(null);
   const scrollRef = useRef(null);
-  const [tooltip, setTooltip] = useState({
-    visible: false,
-    x: 0,
-    y: 0,
-    content: ''
-  });
+  const [hovered, setHovered] = useState(null); // { event, rect } for the hover card
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -37,7 +33,7 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
   const handleEventContextMenu = (event, e) => {
     e.preventDefault();
     e.stopPropagation();
-    setTooltip({ visible: false, x: 0, y: 0, content: '' });
+    setHovered(null);
     setContextMenu({ x: e.clientX, y: e.clientY, event });
   };
 
@@ -84,44 +80,11 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
     onEventClick?.(event);
   };
 
-  /**
-   * Shows tooltip on event hover with time and description.
-   * @param {Object} event - The event object being hovered.
-   * @param {Event} e - The DOM mouse event.
-   */
   const handleEventMouseEnter = (event, e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const eventStart = new Date(event.start?.dateTime || event.start?.date || event.start);
-    const eventEnd = event.end?.dateTime 
-      ? new Date(event.end.dateTime) 
-      : new Date(eventStart.getTime() + 60 * 60 * 1000);
-    
-    let timeRange;
-    if (event.start?.dateTime) {
-      timeRange = `${format(eventStart, 'h:mm a')} - ${format(eventEnd, 'h:mm a')}`;
-    } else {
-      timeRange = 'All day';
-    }
-    
-    const rawDescription = event.description || '';
-    const description = rawDescription.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/gi, ' ').trim();
-    const location = event.location || '';
-    const lines = [timeRange, location, description].filter(Boolean).join('\n');
-
-    setTooltip({
-      visible: true,
-      x: rect.left + rect.width / 2,
-      y: rect.top - 10,
-      content: lines
-    });
+    setHovered({ event, rect: e.currentTarget.getBoundingClientRect() });
   };
 
-  /**
-   * Hides tooltip when mouse leaves event.
-   */
-  const handleEventMouseLeave = () => {
-    setTooltip({ visible: false, x: 0, y: 0, content: '' });
-  };
+  const handleEventMouseLeave = () => setHovered(null);
 
   const nextPeriod = () => {
     if (view === 'month') {
@@ -327,23 +290,7 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
         </div>
       )}
 
-      {/* Custom Tooltip */}
-      {tooltip.visible && (
-        <div
-          className="fixed bg-ink text-paper text-xs px-3 py-2 rounded-md shadow-lg z-50 max-w-xs pointer-events-none"
-          style={{
-            left: `${tooltip.x}px`,
-            top: `${tooltip.y}px`,
-            transform: 'translateX(-50%) translateY(-100%)'
-          }}
-        >
-          <div className="whitespace-pre-line font-medium">
-            {tooltip.content}
-          </div>
-          {/* Tooltip arrow */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-ink"></div>
-        </div>
-      )}
+      <EventTooltip hovered={hovered} />
 
       {/* Delete toast notification */}
       <div
