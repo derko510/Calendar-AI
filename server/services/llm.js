@@ -2,7 +2,11 @@
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-export const groqModel = () => process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
+// Llama models were dropped from Groq's free tier; gpt-oss-20b is free and supports JSON mode
+export const groqModel = () => process.env.GROQ_MODEL?.trim() || 'openai/gpt-oss-20b';
+
+// gpt-oss models reason before answering, and those tokens count toward max_tokens
+const isReasoningModel = (model) => model.startsWith('openai/gpt-oss');
 
 // Pasted env values often carry a trailing newline, spaces or quotes, which Groq rejects as an invalid key
 export const groqKey = () => {
@@ -33,6 +37,8 @@ async function errorText(response) {
 // json: true forces the model to return a single valid JSON object
 export async function generate(prompt, { temperature = 0.3, maxTokens = 500, json = false } = {}) {
   if (!groqKey()) throw new Error('GROQ_API_KEY is not set on the server');
+  const model = groqModel();
+  const reasoning = isReasoningModel(model);
 
   const response = await fetch(GROQ_URL, {
     method: 'POST',
@@ -41,10 +47,11 @@ export async function generate(prompt, { temperature = 0.3, maxTokens = 500, jso
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: groqModel(),
+      model,
       messages: [{ role: 'user', content: prompt }],
       temperature,
-      max_tokens: maxTokens,
+      max_tokens: reasoning ? maxTokens + 1024 : maxTokens,
+      ...(reasoning && { reasoning_effort: 'low' }),
       ...(json && { response_format: { type: 'json_object' } }),
     }),
   });
