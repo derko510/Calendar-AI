@@ -85,7 +85,11 @@ function retryDelayMs(response, attempt) {
 
 // ---------- shared error shapes ----------
 export const timeoutError = (provider) => Object.assign(new Error('The AI took too long to answer. Please try again.'), { code: 'timeout', provider });
-const rateLimited = (provider, providerMessage) => Object.assign(new Error('rate_limited'), { status: 429, provider, ...(providerMessage && { providerMessage }) });
+// daily: the provider's per-day quota is used up (Groq says "tokens per day (TPD)" / "requests per day"), so retrying soon won't help
+const rateLimited = (provider, providerMessage) => Object.assign(new Error('rate_limited'), {
+  status: 429, provider, ...(providerMessage && { providerMessage }),
+  daily: /per day|\bTPD\b|\bRPD\b/i.test(providerMessage || '')
+});
 const truncated = (provider) => Object.assign(new Error('The AI reply was cut off.'), { code: 'output_truncated', provider });
 
 // One deadline shared by every call (and every provider) in a request. Infinity = no budget (evals).

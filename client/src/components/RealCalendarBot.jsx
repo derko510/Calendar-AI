@@ -369,6 +369,8 @@ const RealCalendarBot = ({ demo = false, events, inputRef, loadedRange, onCreate
     if (res.status === 401 || res.status === 403) throw new Error(data.message || 'You need to sign in to use the assistant.');
     if (res.status === 413) throw new Error('Your calendar is too large to send — try again after a refresh.');
     if (res.status === 429) throw new Error('The assistant is busy right now — try again in a minute.');
+    // 503 with a message: the server knows why (e.g. the free daily quota is used up), so show its words
+    if (res.status === 503 && data.message) throw new Error(data.message);
     if (!res.ok || !data.success) {
       throw new Error(data.message || (res.status >= 500
         ? `The assistant server isn’t responding (error ${res.status}). Try again in a moment.`

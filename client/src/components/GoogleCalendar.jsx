@@ -284,9 +284,14 @@ const GoogleCalendar = ({
             </span>
           )}
           {demo && (
-            <span className="hidden sm:inline-flex items-center rounded-full border border-accent/30 bg-accent-soft/70 px-2.5 py-0.5 text-[11px] font-medium text-[#6B2E17] whitespace-nowrap" title="This is a demo with sample data. Nothing is saved to Google.">
-              Demo — sample data
+            <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent-soft/70 px-2 sm:px-2.5 py-0.5 text-[11px] font-medium text-[#6B2E17] whitespace-nowrap" title="This is a demo with sample data. Nothing is saved to Google.">
+              Demo<span className="hidden sm:inline">&nbsp;— sample data</span>
             </span>
+          )}
+          {demo && onSignOut && (
+            <button type="button" onClick={onSignOut} className="sm:hidden rounded-full px-2 py-0.5 text-[12px] text-muted underline underline-offset-2 hover:text-ink whitespace-nowrap">
+              Exit
+            </button>
           )}
         </div>
 
@@ -334,9 +339,11 @@ const GoogleCalendar = ({
           </button>
           {onSignOut && (
             demo ? (
-              <button type="button" onClick={onSignOut} className="hidden sm:inline-flex rounded-full px-3 py-1.5 text-sm text-muted hover:text-ink hover:bg-paper transition-colors whitespace-nowrap">
-                Exit demo
-              </button>
+              <>
+                <button type="button" onClick={onSignOut} className="hidden sm:inline-flex rounded-full px-3 py-1.5 text-sm text-muted hover:text-ink hover:bg-paper transition-colors whitespace-nowrap">
+                  Exit demo
+                </button>
+              </>
             ) : (
               <button type="button" onClick={onSignOut} className={iconBtn} title="Sign out" aria-label="Sign out">
                 <LogOut size={17} />

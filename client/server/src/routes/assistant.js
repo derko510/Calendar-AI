@@ -72,6 +72,9 @@ router.post('/message', requireUser, async (req, res) => {
     logLine({ ok: false, engine, tier, servedBy: llm ? llm.servedBy || `${llm.provider}:${llm.model}` : null, error: err.code || err.status || 'error', ms: Date.now() - started, steps: err.stats?.steps, malformed: err.stats?.malformed, ...(llm?.usage || {}) });
     console.error('Assistant error:', String(err.message).slice(0, 300));
     if (err.code === 'assistant_unavailable') return res.status(503).json({ success: false, message: 'The assistant is unavailable right now. Please try again later.' });
+    if (err.message === 'rate_limited' && err.daily) {
+      return res.status(503).json({ success: false, error: 'daily_quota', message: 'The free assistant has used up today’s quota. It resets every day, so try again tomorrow.' });
+    }
     if (err.message === 'rate_limited') return res.status(429).json({ success: false, message: 'rate_limited' });
     if (err.code === 'timeout') return res.status(504).json({ success: false, message: 'The assistant took too long to answer. Please try again.' });
     if (err.code === 'unusable_output') return res.status(422).json({ success: false, message: 'I could not understand that. Try rephrasing.' });

@@ -96,12 +96,14 @@ function notifySignedOut() {
 // One refresh at a time; concurrent callers share the same request
 function refresh() {
   if (!refreshing) {
+    // Only a session that was live in this page can "end". A first visit (no session yet) is not a sign-out.
+    const wasSignedIn = Boolean(accessToken);
     refreshing = post('/refresh')
       .then(applyTokens)
       .catch(err => {
         if (err instanceof AuthError && err.status === 401) {
           clearLocal();
-          notifySignedOut();
+          if (wasSignedIn) notifySignedOut();
         }
         throw err;
       })
