@@ -1,54 +1,71 @@
-// Checks the backend's keys and connections from your machine: `npm run check-env` (reads client/.env).
-// Makes one tiny request to Groq and the database. Never prints secret values.
+// Checks the app's settings from your machine: `npm run check-env` (reads client/.env).
+// Makes one tiny request to the AI provider. Never prints secret values.
 import 'dotenv/config';
-import pg from 'pg';
+import { createLLM, llmProvider, activeModel, groqModel, anthropicModel } from '../src/services/llm.js';
 
 let failures = 0;
 const ok = (name, detail = '') => console.log(`  ✅ ${name}${detail ? ` — ${detail}` : ''}`);
 const fail = (name, detail) => { failures++; console.log(`  ❌ ${name} — ${detail}`); };
-const skip = (name, detail) => console.log(`  ⚪ ${name} — ${detail}`);
 
-async function checkGroq() {
-  if (!process.env.GROQ_API_KEY) return fail('GROQ_API_KEY', 'not set (the chat needs it)');
-  const { generate, groqModel } = await import('../src/services/llm.js');
+const provider = llmProvider();
+console.log(`\nAI (${{ groq: 'Groq', anthropic: 'Claude', 'groq+anthropic': 'Groq first, Claude when Groq is rate limited' }[provider]})`);
+
+// Tests one provider's key with a tiny request, never printing the key
+async function checkKey(keyName, model) {
+  if (!process.env[keyName]) return fail(keyName, 'not set');
   try {
-    const raw = await generate('Respond with ONLY this JSON object: {"ok":true}', { temperature: 0, maxTokens: 20, json: true });
-    JSON.parse(raw).ok === true
-      ? ok('GROQ_API_KEY', `${groqModel()} answered`)
-      : fail('GROQ_API_KEY', `unexpected reply: ${raw.slice(0, 120)}`);
+    const raw = await createLLM({ model }).generate('Respond with ONLY this JSON object: {"ok":true}', { maxTokens: 20, json: true });
+    JSON.parse(raw).ok === true ? ok(keyName, `${model} answered`) : fail(keyName, `unexpected reply: ${raw.slice(0, 120)}`);
   } catch (err) {
-    fail('GROQ_API_KEY', err.message === 'rate_limited' ? 'rate limited (key works, try again later)' : String(err.message).slice(0, 300));
+    fail(keyName, err.message === 'rate_limited' ? 'rate limited (key works, try again later)' : String(err.message).slice(0, 300));
   }
 }
 
-async function checkDatabase() {
-  if (!process.env.DATABASE_URL) return skip('DATABASE_URL', 'not set (chat still works; events are kept in memory)');
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 10000 });
-  try {
-    await pool.query('select 1');
-    const { rows } = await pool.query(
-      "select to_regclass('public.users') as users, to_regclass('public.calendar_events') as events"
-    );
-    rows[0].users && rows[0].events
-      ? ok('DATABASE_URL', 'connected, tables exist')
-      : fail('DATABASE_URL', 'connected, but tables are missing. Run: npm run db:push');
-  } catch (err) {
-    fail('DATABASE_URL', err.message);
-  } finally {
-    await pool.end();
-  }
+if (!process.env.GROQ_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+  fail('AI key', 'set GROQ_API_KEY and/or ANTHROPIC_API_KEY (the chat needs one)');
+} else {
+  if (provider !== 'anthropic') await checkKey('GROQ_API_KEY', groqModel());
+  if (provider !== 'groq') await checkKey('ANTHROPIC_API_KEY', anthropicModel());
+  console.log(`  ℹ️  chat model: ${activeModel()}`);
 }
 
-console.log('\nAI (Groq)');
-await checkGroq();
+console.log('\nGoogle sign-in');
+const isPlaceholder = v => /^your_|^replace_with/.test(v || '');
+const viteClientId = process.env.VITE_GOOGLE_CLIENT_ID || '';
+const serverClientId = process.env.GOOGLE_CLIENT_ID || '';
+!viteClientId || isPlaceholder(viteClientId)
+  ? fail('VITE_GOOGLE_CLIENT_ID', 'not set (sign-in needs it)')
+  : ok('VITE_GOOGLE_CLIENT_ID', 'set');
 
-console.log('\nDatabase');
-await checkDatabase();
-
-console.log('\nOther settings');
-for (const name of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'SESSION_SECRET', 'JWT_SECRET', 'FRONTEND_URL']) {
-  process.env[name] ? ok(name, 'set') : skip(name, 'not set');
+if (!serverClientId) {
+  viteClientId && !isPlaceholder(viteClientId)
+    ? ok('GOOGLE_CLIENT_ID', 'not set, using VITE_GOOGLE_CLIENT_ID')
+    : fail('GOOGLE_CLIENT_ID', 'not set (the server needs the OAuth client ID)');
+} else if (isPlaceholder(serverClientId)) {
+  fail('GOOGLE_CLIENT_ID', 'still the placeholder from .env.example');
+} else if (viteClientId && serverClientId !== viteClientId) {
+  fail('GOOGLE_CLIENT_ID', 'differs from VITE_GOOGLE_CLIENT_ID (they must be the same OAuth client)');
+} else {
+  ok('GOOGLE_CLIENT_ID', 'set');
 }
 
-console.log(failures ? `\n${failures} check(s) failed.\n` : '\nAll configured checks passed.\n');
+const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+!clientSecret || isPlaceholder(clientSecret)
+  ? fail('GOOGLE_CLIENT_SECRET', 'not set (needed to keep you signed in)')
+  : ok('GOOGLE_CLIENT_SECRET', 'set');
+
+const sessionSecret = process.env.SESSION_SECRET || '';
+if (!sessionSecret || isPlaceholder(sessionSecret)) {
+  fail('SESSION_SECRET', "not set (generate one: node -e \"console.log(require('crypto').randomBytes(32).toString('base64url'))\")");
+} else if (sessionSecret.length < 32) {
+  fail('SESSION_SECRET', `too short (${sessionSecret.length} chars, needs 32+)`);
+} else {
+  ok('SESSION_SECRET', `set (${sessionSecret.length} chars)`);
+}
+
+if (process.env.VITE_GOOGLE_CLIENT_SECRET || process.env.VITE_SESSION_SECRET) {
+  fail('VITE_* secret', 'a secret has a VITE_ prefix, which would ship it to the browser; remove the prefix');
+}
+
+console.log(failures ? `\n${failures} check(s) failed.\n` : '\nAll checks passed.\n');
 process.exit(failures ? 1 : 0);

@@ -1,199 +1,280 @@
-import { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, LogOut, Trash2 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns';
+import { useState, useEffect, useCallback, useId, useRef } from 'react';
+import { ChevronLeft, ChevronRight, LogOut, Plus, RefreshCw, Keyboard } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, addDays, addMonths, addWeeks, isSameMonth, isSameDay, isWithinInterval, startOfDay } from 'date-fns';
 import MonthView from './MonthView';
 import WeekView from './WeekView';
 import DayView from './DayView';
-import googleCalendarService from '../services/googleCalendar';
-import { getEventTone } from '../utils/eventColors';
+import Dialog from './Dialog';
+import EventDetails from './EventDetails';
+import EventForm from './EventForm';
+import { getEventStart, isAllDayRowEvent } from '../utils/eventUtils';
+import { formValuesFromRange, buildEventPayload, defaultNewRange } from '../utils/eventForm';
 
-const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventClick, onSignOut, onDeleteEvent, userCredential }) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [view, setView] = useState('week'); // month, week, day
-  const [contextMenu, setContextMenu] = useState(null); // { x, y, event }
-  const [deletingId, setDeletingId] = useState(null);
-  const contextMenuRef = useRef(null);
-  const [toast, setToast] = useState(null); // { message, id }
-  const toastTimerRef = useRef(null);
-  const scrollRef = useRef(null);
-  const [tooltip, setTooltip] = useState({
-    visible: false,
-    x: 0,
-    y: 0,
-    content: ''
-  });
+const VIEWS = ['month', 'week', 'day'];
+const VIEW_KEY = 'calendar.view';
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target)) {
-        setContextMenu(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+const initialView = () => {
+  try {
+    const saved = localStorage.getItem(VIEW_KEY);
+    if (VIEWS.includes(saved)) return saved;
+  } catch { /* storage blocked */ }
+  return typeof window !== 'undefined' && window.innerWidth < 640 ? 'day' : 'week';
+};
+
+const isTypingTarget = (el) =>
+  !!el?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
+
+const SHORTCUTS = [
+  ['t', 'Go to today'],
+  ['j  or  →', 'Next period'],
+  ['k  or  ←', 'Previous period'],
+  ['m / w / d', 'Month, week, day view'],
+  ['n  or  c', 'New event'],
+  ['e', 'Edit the open event'],
+  ['/', 'Ask the assistant'],
+  ['r', 'Refresh'],
+  ['Esc', 'Close dialog'],
+  ['?', 'Show shortcuts']
+];
+
+const scrollMinutesFor = (date, now) => {
+  const day = startOfDay(date);
+  return isSameDay(day, now) ? now.getHours() * 60 + now.getMinutes() : 8 * 60;
+};
+
+/**
+ * Calendar pane: header + Month/Week/Day views + event details / create dialogs + keyboard shortcuts.
+ * Data changes go through onCreate(payload) / onUpdate(event, changes) / onDelete(event), all async.
+ */
+const GoogleCalendar = ({
+  events = [], now = new Date(), demo = false, onSignOut, onCreate, onUpdate, onDelete, notify,
+  focusRequest, onFocusChat, onRefresh, refreshing = false, lastUpdated
+}) => {
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [view, setViewState] = useState(initialView);
+  const [selectedId, setSelectedId] = useState(null);
+  const [createDraft, setCreateDraft] = useState(null); // form initial values
+  const [showHelp, setShowHelp] = useState(false);
+  const [busyIds, setBusyIds] = useState(() => new Set());
+  const [scrollTarget, setScrollTarget] = useState(() => ({ minutes: scrollMinutesFor(new Date(), new Date()), nonce: 0 }));
+  const detailsHeadingId = useId();
+  const createHeadingId = useId();
+  const helpHeadingId = useId();
+
+  const selectedEvent = selectedId ? events.find(e => e.id === selectedId) : null;
+
+  const setView = useCallback((v) => {
+    setViewState(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage blocked */ }
   }, []);
 
-  const handleEventContextMenu = (event, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setTooltip({ visible: false, x: 0, y: 0, content: '' });
-    setContextMenu({ x: e.clientX, y: e.clientY, event });
-  };
+  const scrollTo = useCallback((minutes) => setScrollTarget(t => ({ minutes, nonce: t.nonce + 1 })), []);
 
-  const showToast = (message) => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ message, id: Date.now() });
-    toastTimerRef.current = setTimeout(() => setToast(null), 3500);
-  };
-
-  const handleDeleteFromContextMenu = async () => {
-    if (!contextMenu?.event) return;
-    const ev = contextMenu.event;
-    setContextMenu(null);
-    setDeletingId(ev.id);
-    try {
-      if (userCredential?.accessToken) {
-        googleCalendarService.setAccessToken(userCredential.accessToken);
-        await googleCalendarService.deleteEvent(ev.calendarId || 'primary', ev.id);
-      }
-      onDeleteEvent?.(ev.id);
-      showToast(`"${ev.summary || 'Event'}" deleted`);
-    } catch (err) {
-      console.error('Delete error:', err);
-      showToast('Could not delete event');
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(monthStart);
-  const startDate = startOfWeek(monthStart, { weekStartsOn: 0 });
-  const endDate = endOfWeek(monthEnd, { weekStartsOn: 0 });
-
-  const dayFormat = "d";
-
-  const handleDateClick = (day) => {
-    setSelectedDate(day);
-    onDateSelect?.(day);
-  };
-
-  const handleEventClick = (event, e) => {
-    e.stopPropagation();
-    onEventClick?.(event);
-  };
-
-  /**
-   * Shows tooltip on event hover with time and description.
-   * @param {Object} event - The event object being hovered.
-   * @param {Event} e - The DOM mouse event.
-   */
-  const handleEventMouseEnter = (event, e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const eventStart = new Date(event.start?.dateTime || event.start?.date || event.start);
-    const eventEnd = event.end?.dateTime 
-      ? new Date(event.end.dateTime) 
-      : new Date(eventStart.getTime() + 60 * 60 * 1000);
-    
-    let timeRange;
-    if (event.start?.dateTime) {
-      timeRange = `${format(eventStart, 'h:mm a')} - ${format(eventEnd, 'h:mm a')}`;
-    } else {
-      timeRange = 'All day';
-    }
-    
-    const rawDescription = event.description || '';
-    const description = rawDescription.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/gi, ' ').trim();
-    const location = event.location || '';
-    const lines = [timeRange, location, description].filter(Boolean).join('\n');
-
-    setTooltip({
-      visible: true,
-      x: rect.left + rect.width / 2,
-      y: rect.top - 10,
-      content: lines
-    });
-  };
-
-  /**
-   * Hides tooltip when mouse leaves event.
-   */
-  const handleEventMouseLeave = () => {
-    setTooltip({ visible: false, x: 0, y: 0, content: '' });
-  };
-
-  const nextPeriod = () => {
-    if (view === 'month') {
-      setCurrentDate(addMonths(currentDate, 1));
-    } else if (view === 'week') {
-      setCurrentDate(addWeeks(currentDate, 1));
-    } else if (view === 'day') {
-      setCurrentDate(addDays(currentDate, 1));
-    }
-  };
-
-  const prevPeriod = () => {
-    if (view === 'month') {
-      setCurrentDate(subMonths(currentDate, 1));
-    } else if (view === 'week') {
-      setCurrentDate(subWeeks(currentDate, 1));
-    } else if (view === 'day') {
-      setCurrentDate(addDays(currentDate, -1));
-    }
-  };
-
-  const scrollToNow = () => {
-    // Week grid rows are 64px per hour; keep a couple of hours of context above "now"
-    const hour = new Date().getHours();
-    const top = (hour >= 8 && hour <= 22 ? hour - 2 : 7) * 64;
-    scrollRef.current?.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-  };
-
+  // The selected event vanished (deleted elsewhere, or a refresh dropped it)
   useEffect(() => {
-    if (view === 'week') scrollToNow();
+    if (selectedId && !selectedEvent) setSelectedId(null);
+  }, [selectedId, selectedEvent]);
+
+  // Jump to an event requested from the chat panel and open it
+  useEffect(() => {
+    if (!focusRequest) return;
+    const event = events.find(e => e.id === focusRequest.id);
+    if (!event) return;
+    const start = getEventStart(event);
+    const targetKey = view === 'week' ? format(startOfWeek(start), 'yyyy-MM-dd') : format(start, 'yyyy-MM-dd');
+    if (view !== 'month' && targetKey !== rangeKey) skipAutoScroll.current = true;
+    setCurrentDate(start);
+    if (!isAllDayRowEvent(event)) scrollTo(start.getHours() * 60 + start.getMinutes());
+    setSelectedId(event.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to a new request, not to event list refreshes
+  }, [focusRequest?.nonce]);
+
+  const step = useCallback((dir) => {
+    setCurrentDate(d => (view === 'month' ? addMonths(d, dir) : view === 'week' ? addWeeks(d, dir) : addDays(d, dir)));
   }, [view]);
 
-  const goToToday = () => {
+  const goToToday = useCallback(() => {
     const today = new Date();
     setCurrentDate(today);
-    setSelectedDate(today);
-    
-    if (view === 'week') scrollToNow();
+    scrollTo(scrollMinutesFor(today, today));
+  }, [scrollTo]);
+
+  const openDay = useCallback((day) => {
+    setCurrentDate(day);
+    setView('day');
+    scrollTo(scrollMinutesFor(day, new Date()));
+  }, [scrollTo, setView]);
+
+  const openCreate = useCallback((start, end, allDay = false) => {
+    setSelectedId(null);
+    setCreateDraft(formValuesFromRange(start, end, allDay));
+  }, []);
+
+  const openNewForCurrent = useCallback(() => {
+    // Today if it's in view, otherwise the first day being looked at
+    const today = new Date();
+    let day = currentDate;
+    if (view === 'week') {
+      const ws = startOfWeek(currentDate);
+      day = isWithinInterval(today, { start: ws, end: endOfWeek(currentDate) }) ? today : ws;
+    } else if (view === 'month') {
+      day = isSameMonth(today, currentDate) ? today : currentDate;
+    }
+    const { start, end } = defaultNewRange(day);
+    openCreate(start, end);
+  }, [currentDate, view, openCreate]);
+
+  // ---- Keyboard shortcuts (Google Calendar style) ----
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isTypingTarget(e.target)) return;
+      if (document.querySelector('[data-dialog-open]')) return; // dialogs handle their own keys (Esc, Tab, e)
+      const key = e.key;
+      const actions = {
+        t: goToToday,
+        j: () => step(1),
+        ArrowRight: () => step(1),
+        k: () => step(-1),
+        ArrowLeft: () => step(-1),
+        m: () => setView('month'),
+        w: () => setView('week'),
+        d: () => setView('day'),
+        n: openNewForCurrent,
+        c: openNewForCurrent,
+        '/': () => onFocusChat?.(),
+        r: () => onRefresh?.(),
+        '?': () => setShowHelp(true)
+      };
+      const action = Object.hasOwn(actions, key) ? actions[key] : null;
+      if (!action) return;
+      e.preventDefault();
+      action();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [goToToday, step, setView, openNewForCurrent, onFocusChat, onRefresh]);
+
+  // Changing view or period scrolls the time grid to "now" when today is visible,
+  // otherwise to the first timed event in range (or 8 AM). A jump to a specific event wins.
+  const skipAutoScroll = useRef(false);
+  const rangeKey = view === 'week' ? format(startOfWeek(currentDate), 'yyyy-MM-dd') : format(currentDate, 'yyyy-MM-dd');
+  useEffect(() => {
+    if (view === 'month') return;
+    if (skipAutoScroll.current) { skipAutoScroll.current = false; return; }
+    const today = new Date();
+    const first = view === 'week' ? startOfWeek(currentDate) : startOfDay(currentDate);
+    const last = addDays(first, view === 'week' ? 7 : 1);
+    if (today >= first && today < last) { scrollTo(today.getHours() * 60 + today.getMinutes()); return; }
+    const starts = events
+      .filter(e => !isAllDayRowEvent(e))
+      .map(getEventStart)
+      .filter(d => d && d >= first && d < last)
+      .map(d => d.getHours() * 60 + d.getMinutes());
+    scrollTo(starts.length ? Math.min(...starts) : 8 * 60);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the visible range changes
+  }, [view, rangeKey]);
+
+  const markBusy = (id, busy) => setBusyIds(prev => {
+    const next = new Set(prev);
+    if (busy) next.add(id); else next.delete(id);
+    return next;
+  });
+
+  const handleCreate = async (values) => {
+    const { payload, error } = buildEventPayload(values);
+    if (error) throw new Error(error);
+    const created = await onCreate(payload);
+    setCreateDraft(null);
+    const start = getEventStart(created);
+    if (start) setCurrentDate(d => (view === 'month' ? (isSameMonth(d, start) ? d : start) : start));
+    notify?.(`Created “${created.summary || 'event'}”`);
   };
 
-  const renderHeader = () => {
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-line">
-        <div className="flex items-center gap-4 min-w-0">
-          <h1 className="font-serif text-[28px] leading-none text-ink whitespace-nowrap">
-            {view === 'month' && <>{format(currentDate, 'MMMM')} <span className="text-muted">{format(currentDate, 'yyyy')}</span></>}
-            {view === 'week' && <>{format(startOfWeek(currentDate), 'MMM d')} – {format(endOfWeek(currentDate), 'MMM d')}</>}
-            {view === 'day' && <>{format(currentDate, 'EEEE')} <span className="text-muted">{format(currentDate, 'MMM d')}</span></>}
-          </h1>
-          <div className="flex items-center gap-1">
-            <button onClick={prevPeriod} aria-label="Previous" className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-paper transition-colors">
+  const handleUpdate = async (event, changes) => {
+    markBusy(event.id, true);
+    try {
+      await onUpdate(event, changes);
+      notify?.('Event updated');
+    } finally {
+      markBusy(event.id, false);
+    }
+  };
+
+  const handleDelete = async (event) => {
+    markBusy(event.id, true);
+    try {
+      await onDelete(event);
+      setSelectedId(null);
+      notify?.(`Deleted “${event.summary || 'event'}”`);
+    } finally {
+      markBusy(event.id, false);
+    }
+  };
+
+  const title = (() => {
+    if (view === 'month') return <>{format(currentDate, 'MMMM')} <span className="text-muted">{format(currentDate, 'yyyy')}</span></>;
+    if (view === 'week') {
+      const ws = startOfWeek(currentDate);
+      const we = endOfWeek(currentDate);
+      const sameMonth = ws.getMonth() === we.getMonth();
+      return <>{format(ws, 'MMM d')} – {format(we, sameMonth ? 'd' : 'MMM d')} <span className="text-muted">{format(we, 'yyyy')}</span></>;
+    }
+    return <>{format(currentDate, 'EEE')} <span className="text-muted">{format(currentDate, 'MMM d')}</span></>;
+  })();
+
+  const iconBtn = 'p-2 rounded-full text-muted hover:text-ink hover:bg-paper transition-colors';
+  const viewProps = {
+    currentDate,
+    events,
+    now,
+    onEventClick: (event) => setSelectedId(event.id),
+    selectedEventId: selectedId,
+    busyIds
+  };
+
+  return (
+    <div className="bg-surface rounded-2xl border border-line w-full h-full flex flex-col overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-5 py-2.5 sm:py-3.5 border-b border-line">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <h1 className="font-serif text-[24px] sm:text-[28px] leading-none text-ink whitespace-nowrap" aria-live="polite">{title}</h1>
+          <div className="flex items-center gap-0.5">
+            <button type="button" onClick={() => step(-1)} aria-label={`Previous ${view}`} title="Previous (k)" className={iconBtn}>
               <ChevronLeft size={18} />
             </button>
-            <button
-              onClick={goToToday}
-              className="px-2.5 py-1 text-sm font-medium text-ink-soft rounded-md hover:bg-paper transition-colors"
-            >
+            <button type="button" onClick={goToToday} title="Today (t)" className="px-2.5 py-1 text-sm font-medium text-ink-soft rounded-md border border-line hover:bg-paper transition-colors">
               Today
             </button>
-            <button onClick={nextPeriod} aria-label="Next" className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-paper transition-colors">
+            <button type="button" onClick={() => step(1)} aria-label={`Next ${view}`} title="Next (j)" className={iconBtn}>
               <ChevronRight size={18} />
             </button>
           </div>
+          {demo && (
+            <span className="hidden sm:inline-flex items-center rounded-full border border-accent/30 bg-accent-soft/70 px-2.5 py-0.5 text-[11px] font-medium text-[#6B2E17] whitespace-nowrap" title="This is a demo with sample data. Nothing is saved to Google.">
+              Demo — sample data
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-full bg-paper p-1">
-            {['month', 'week', 'day'].map((v) => (
+        <div className="flex items-center gap-1 sm:gap-1.5 ml-auto">
+          <button
+            type="button"
+            onClick={openNewForCurrent}
+            title="New event (n)"
+            className="inline-flex items-center gap-1 rounded-full bg-ink pl-2.5 pr-3 py-1.5 text-sm font-medium text-paper hover:bg-ink-soft transition-colors"
+          >
+            <Plus size={16} aria-hidden="true" />
+            New
+          </button>
+          <div className="flex rounded-full bg-paper p-1" role="group" aria-label="Calendar view">
+            {VIEWS.map((v) => (
               <button
+                type="button"
                 key={v}
                 onClick={() => setView(v)}
-                className={`px-3.5 py-1 text-sm rounded-full transition-colors ${
+                aria-pressed={view === v}
+                title={`${v[0].toUpperCase()}${v.slice(1)} view (${v[0]})`}
+                className={`px-2.5 sm:px-3.5 py-1 text-sm rounded-full transition-colors ${
                   view === v ? 'bg-surface text-ink font-medium shadow-[0_1px_2px_rgba(29,28,26,0.08)]' : 'text-muted hover:text-ink'
                 }`}
               >
@@ -201,159 +282,84 @@ const GoogleCalendar = ({ events = [], loading = false, onDateSelect, onEventCli
               </button>
             ))}
           </div>
-          {onSignOut && (
+          {onRefresh && (
             <button
-              onClick={onSignOut}
-              className="p-2 text-muted hover:text-ink hover:bg-paper rounded-full transition-colors"
-              title="Sign out"
-              aria-label="Sign out"
+              type="button"
+              onClick={onRefresh}
+              disabled={refreshing}
+              aria-label="Refresh events"
+              title={`Refresh (r)${lastUpdated ? ` · updated ${format(lastUpdated, 'h:mm a')}` : ''}`}
+              className={`${iconBtn} hidden sm:inline-flex disabled:opacity-50`}
             >
-              <LogOut size={17} />
+              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
             </button>
+          )}
+          <button type="button" onClick={() => setShowHelp(true)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" className={`${iconBtn} hidden md:inline-flex`}>
+            <Keyboard size={17} />
+          </button>
+          {onSignOut && (
+            demo ? (
+              <button type="button" onClick={onSignOut} className="hidden sm:inline-flex rounded-full px-3 py-1.5 text-sm text-muted hover:text-ink hover:bg-paper transition-colors whitespace-nowrap">
+                Exit demo
+              </button>
+            ) : (
+              <button type="button" onClick={onSignOut} className={iconBtn} title="Sign out" aria-label="Sign out">
+                <LogOut size={17} />
+              </button>
+            )
           )}
         </div>
       </div>
-    );
-  };
 
-  const renderDaysOfWeek = () => {
-    const days = [];
-    let startDay = startOfWeek(currentDate, { weekStartsOn: 0 });
+      <div className="flex-1 min-h-0">
+        {view === 'month' && <MonthView {...viewProps} onDayClick={openDay} />}
+        {view === 'week' && <WeekView {...viewProps} onDayClick={openDay} onCreateRange={openCreate} scrollTarget={scrollTarget} />}
+        {view === 'day' && <DayView {...viewProps} onCreateRange={openCreate} scrollTarget={scrollTarget} />}
+      </div>
 
-    for (let i = 0; i < 7; i++) {
-      days.push(
-        <div key={i} className="px-3 py-2.5 text-xs font-medium uppercase tracking-[0.08em] text-muted border-r border-line last:border-r-0">
-          {format(addDays(startDay, i), 'EEE')}
-        </div>
-      );
-    }
-
-    return <div className="grid grid-cols-7 border-b border-line">{days}</div>;
-  };
-
-  const renderEventBar = (event, width = 'w-full') => {
-    const tone = getEventTone(event);
-    return (
-      <div
-        onClick={(e) => handleEventClick(event, e)}
-        onContextMenu={(e) => handleEventContextMenu(event, e)}
-        onMouseEnter={(e) => handleEventMouseEnter(event, e)}
-        onMouseLeave={handleEventMouseLeave}
-        className={`${width} ${tone.block} flex items-baseline gap-1.5 border-l-2 rounded-[4px] px-1.5 py-0.5 text-xs cursor-pointer hover:brightness-[0.97] transition ${deletingId === event.id ? 'opacity-40 pointer-events-none' : ''}`}
-      >
-        {event.start?.dateTime && (
-          <span className="shrink-0 opacity-70">{format(new Date(event.start.dateTime), 'h:mmaaaaa')}</span>
+      <Dialog open={!!selectedEvent} onClose={() => setSelectedId(null)} labelledBy={detailsHeadingId}>
+        {selectedEvent && (
+          <EventDetails
+            key={selectedEvent.id}
+            event={selectedEvent}
+            headingId={detailsHeadingId}
+            onClose={() => setSelectedId(null)}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+          />
         )}
-        <span className="truncate font-medium">{event.summary}</span>
-      </div>
-    );
-  };
+      </Dialog>
 
-  const renderContent = () => {
-    switch (view) {
-      case 'week':
-        return <WeekView
-          currentDate={currentDate}
-          events={events}
-          handleDateClick={handleDateClick}
-          handleEventClick={handleEventClick}
-          handleEventContextMenu={handleEventContextMenu}
-          deletingId={deletingId}
-        />;
-      case 'day':
-        return <DayView
-          currentDate={currentDate}
-          events={events}
-          handleEventClick={handleEventClick}
-          handleEventContextMenu={handleEventContextMenu}
-          deletingId={deletingId}
-        />;
-      default:
-        return <MonthView 
-          currentDate={currentDate}
-          selectedDate={selectedDate}
-          events={events}
-          startDate={startDate}
-          endDate={endDate}
-          monthStart={monthStart}
-          dayFormat={dayFormat}
-          handleDateClick={handleDateClick}
-          renderEventBar={renderEventBar}
-        />;
-    }
-  };
+      <Dialog open={!!createDraft} onClose={() => setCreateDraft(null)} labelledBy={createHeadingId}>
+        {createDraft && (
+          <EventForm
+            heading="New event"
+            headingId={createHeadingId}
+            initial={createDraft}
+            submitLabel={demo ? 'Add (demo)' : 'Add to calendar'}
+            onCancel={() => setCreateDraft(null)}
+            onSubmit={handleCreate}
+          />
+        )}
+      </Dialog>
 
-  if (loading) {
-    return (
-      <div className="bg-surface rounded-2xl border border-line h-full animate-pulse">
-        <div className="h-16 border-b border-line" />
-        <div className="grid grid-cols-7 h-[calc(100%-4rem)]">
-          {Array(35).fill(0).map((_, i) => (
-            <div key={i} className="border-r border-b border-line p-3">
-              <div className="w-6 h-4 bg-paper rounded" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-surface rounded-2xl border border-line w-full h-full flex flex-col overflow-hidden">
-      {renderHeader()}
-      {view === 'month' && renderDaysOfWeek()}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-quiet">
-        {renderContent()}
-      </div>
-      
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          ref={contextMenuRef}
-          className="fixed z-50 bg-surface rounded-lg shadow-[0_8px_24px_-8px_rgba(29,28,26,0.25)] border border-line py-1 min-w-[160px]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-        >
-          <div className="px-3 py-1.5 text-xs text-muted font-medium truncate max-w-[200px]">
-            {contextMenu.event.summary || contextMenu.event.title}
+      <Dialog open={showHelp} onClose={() => setShowHelp(false)} labelledBy={helpHeadingId}>
+        <div className="p-5">
+          <h2 id={helpHeadingId} className="font-serif text-[26px] leading-none text-ink">Keyboard shortcuts</h2>
+          <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
+            {SHORTCUTS.map(([keys, label]) => (
+              <div key={keys} className="contents">
+                <dt><kbd className="rounded border border-line bg-paper px-1.5 py-0.5 font-sans text-xs text-ink whitespace-pre">{keys}</kbd></dt>
+                <dd className="text-ink-soft">{label}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-4 text-xs text-muted">Click or drag on an empty time in Week or Day view to create an event.</p>
+          <div className="mt-4 flex justify-end">
+            <button type="button" onClick={() => setShowHelp(false)} className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink-soft hover:bg-paper">Close</button>
           </div>
-          <hr className="border-line my-1" />
-          <button
-            onClick={handleDeleteFromContextMenu}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-accent hover:bg-accent-soft transition-colors"
-          >
-            <Trash2 size={14} />
-            Delete event
-          </button>
         </div>
-      )}
-
-      {/* Custom Tooltip */}
-      {tooltip.visible && (
-        <div
-          className="fixed bg-ink text-paper text-xs px-3 py-2 rounded-md shadow-lg z-50 max-w-xs pointer-events-none"
-          style={{
-            left: `${tooltip.x}px`,
-            top: `${tooltip.y}px`,
-            transform: 'translateX(-50%) translateY(-100%)'
-          }}
-        >
-          <div className="whitespace-pre-line font-medium">
-            {tooltip.content}
-          </div>
-          {/* Tooltip arrow */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-ink"></div>
-        </div>
-      )}
-
-      {/* Delete toast notification */}
-      <div
-        className={`fixed bottom-6 left-6 z-50 transition-all duration-300 ${toast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}
-      >
-        <div className="bg-ink text-paper text-sm px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2.5">
-          <Trash2 size={14} className="opacity-60 flex-shrink-0" />
-          <span>{toast?.message}</span>
-        </div>
-      </div>
+      </Dialog>
     </div>
   );
 };

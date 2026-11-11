@@ -4,54 +4,77 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import GoogleAuthProvider from './components/GoogleAuthProvider';
 import SignIn from './pages/SignIn';
 import Dashboard from './pages/Dashboard';
+import * as auth from './services/auth';
+
+// ?demo opens the app on a built-in sample calendar with no Google sign-in
+const isDemo = new URLSearchParams(window.location.search).has('demo');
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  if (isDemo) {
+    return (
+      <div className="App">
+        <Dashboard demo userCredential={null} onSignOut={() => { window.location.href = '/'; }} />
+      </div>
+    );
+  }
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
+  // 'loading' while the session cookie is checked, then 'signedIn' or 'signedOut'
+  const [status, setStatus] = useState('loading');
   const [userCredential, setUserCredential] = useState(null);
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    console.log('🔍 Checking for saved Google authentication...');
-    //test
-    // Check for Google auth in localStorage
-    const savedAuth = localStorage.getItem('googleAuth');
-    if (savedAuth) {
-      try {
-        const userData = JSON.parse(savedAuth);
-        // Check if token is still valid (with some buffer time)
-        if (userData.expiresAt && userData.expiresAt > Date.now()) {
-          console.log('✅ Valid Google auth found on app load for token expiring at:', new Date(userData.expiresAt));
-          setIsAuthenticated(true);
-          setUserCredential(userData);
-        } else {
-          // Token expired, remove from storage
-          console.log('⚠️ Google auth token expired, clearing...', new Date(userData.expiresAt || 0));
-          localStorage.removeItem('googleAuth');
-        }
-      } catch (error) {
-        console.error('Error parsing saved auth:', error);
-        localStorage.removeItem('googleAuth');
-      }
-    } else {
-      console.log('ℹ️ No saved Google authentication found');
-    }
+    let active = true;
+    auth.restoreSession()
+      .then(cred => {
+        if (!active) return;
+        setUserCredential(cred);
+        setStatus(cred ? 'signedIn' : 'signedOut');
+      })
+      .catch(() => {
+        if (!active) return;
+        setNotice('Could not reach the server to restore your session. Try signing in again.');
+        setStatus('signedOut');
+      });
+    // The refresh token was revoked or expired mid-session: back to the sign-in page
+    const unsubscribe = auth.onSignedOut(() => {
+      setUserCredential(null);
+      setNotice('Your Google session ended. Please sign in again.');
+      setStatus('signedOut');
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
-  const handleLoginSuccess = (credentialResponse) => {
-    console.log('🔄 Login success, setting authentication state');
-    setIsAuthenticated(true);
-    setUserCredential(credentialResponse);
-    
-    // The JWT token will be saved by the authService during backend initialization
-    console.log('✅ App authentication state updated');
+  const handleLoginSuccess = (cred) => {
+    setNotice('');
+    setUserCredential(cred);
+    setStatus('signedIn');
+  };
+
+  const handleSignOut = async () => {
+    await auth.signOut();
+    setUserCredential(null);
+    setNotice('');
+    setStatus('signedOut');
   };
 
   return (
     <GoogleAuthProvider>
       <div className="App">
-        {isAuthenticated ? (
-          <Dashboard userCredential={userCredential} />
+        {status === 'loading' ? (
+          <div className="min-h-screen bg-paper flex items-center justify-center" aria-busy="true">
+            <p className="font-serif italic text-3xl text-muted animate-pulse">Opening your calendar…</p>
+          </div>
+        ) : status === 'signedIn' ? (
+          <Dashboard userCredential={userCredential} onSignOut={handleSignOut} />
         ) : (
-          <SignIn onLoginSuccess={handleLoginSuccess} />
+          <SignIn onLoginSuccess={handleLoginSuccess} notice={notice} />
         )}
         <Analytics />
         <SpeedInsights />

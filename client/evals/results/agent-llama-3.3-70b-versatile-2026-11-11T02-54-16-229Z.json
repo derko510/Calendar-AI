@@ -1,0 +1,855 @@
+{
+  "engine": "agent",
+  "model": "llama-3.3-70b-versatile",
+  "startedAt": "2026-11-11T02-54-16-229Z",
+  "now": "2026-11-10T17:27",
+  "timeZone": "America/Los_Angeles",
+  "summary": {
+    "passed": 0,
+    "total": 37,
+    "accuracy": 0,
+    "avgLatencyMs": 63,
+    "usage": {
+      "calls": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    "byCategory": {
+      "next": {
+        "passed": 0,
+        "total": 7
+      },
+      "last": {
+        "passed": 0,
+        "total": 4
+      },
+      "now": {
+        "passed": 0,
+        "total": 1
+      },
+      "keyword": {
+        "passed": 0,
+        "total": 5
+      },
+      "range": {
+        "passed": 0,
+        "total": 5
+      },
+      "none": {
+        "passed": 0,
+        "total": 2
+      },
+      "typo": {
+        "passed": 0,
+        "total": 2
+      },
+      "create": {
+        "passed": 0,
+        "total": 6
+      },
+      "delete": {
+        "passed": 0,
+        "total": 3
+      },
+      "intent": {
+        "passed": 0,
+        "total": 2
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "next-anything",
+      "category": "next",
+      "message": "What's next on my calendar?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "gym-2026-11-11"
+        ],
+        "excludes": [
+          "orbital-interview",
+          "hi",
+          "study-session"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 242,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "next-interview",
+      "category": "next",
+      "message": "whats my next interview",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "northwind-interview"
+        ],
+        "excludes": [
+          "orbital-interview"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 58,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "next-dentist",
+      "category": "next",
+      "message": "When is my next dentist appointment?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dentist-2026-11-15"
+        ],
+        "excludes": [
+          "dentist-2026-09-14",
+          "dental-checkup"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 58,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "next-class",
+      "category": "next",
+      "message": "When is my next class?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "lecture-2026-11-12"
+        ],
+        "excludes": [
+          "lecture-2026-11-10"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 49,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "next-dinner-john",
+      "category": "next",
+      "message": "When is my next dinner with John?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dinner-john-nov"
+        ],
+        "excludes": [
+          "dinner-john-oct"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 54,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "next-while-in-progress",
+      "category": "next",
+      "message": "what's next",
+      "now": "2026-11-12T14:00",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "long-horizon-talk"
+        ],
+        "excludes": [
+          "harbor-interview",
+          "lecture-2026-11-12"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 70,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "next-dentist-same-day",
+      "category": "next",
+      "message": "When is my next dentist appointment?",
+      "now": "2026-11-15T09:30",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dentist-2026-11-15"
+        ],
+        "excludes": [
+          "dental-checkup"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 64,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "last-interview",
+      "category": "last",
+      "message": "When was my last interview?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "orbital-interview"
+        ],
+        "excludes": [
+          "northwind-interview",
+          "harbor-interview"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 60,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "last-dentist",
+      "category": "last",
+      "message": "When was my last dentist appointment?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dental-checkup"
+        ],
+        "excludes": [
+          "dentist-2026-11-15"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 61,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "last-haircut",
+      "category": "last",
+      "message": "When was my last haircut?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "haircut"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 50,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "last-dentist-same-day",
+      "category": "last",
+      "message": "When was my last dentist appointment?",
+      "now": "2026-11-15T12:00",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dentist-2026-11-15"
+        ],
+        "excludes": [
+          "dentist-2026-09-14"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 51,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "now-right-now",
+      "category": "now",
+      "message": "What am I doing right now?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "study-session"
+        ],
+        "excludes": [
+          "hi",
+          "gym-2026-11-11"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 56,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "keyword-doctor",
+      "category": "keyword",
+      "message": "When did I last see the doctor?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "physical"
+        ],
+        "excludes": [
+          "patel-followup"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 45,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "keyword-new-york",
+      "category": "keyword",
+      "message": "When am I flying to New York?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "flight-nyc-nov"
+        ],
+        "excludes": [
+          "flight-nyc-aug"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 56,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "keyword-mom-birthday",
+      "category": "keyword",
+      "message": "When is my mom's birthday?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "moms-birthday"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 60,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "keyword-cs170-final",
+      "category": "keyword",
+      "message": "When is my CS 170 final?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "cs170-final"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 53,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "keyword-orbital-time",
+      "category": "keyword",
+      "message": "What time is the Orbital Labs interview?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "orbital-interview"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 54,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "range-tomorrow",
+      "category": "range",
+      "message": "What do I have tomorrow?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "northwind-interview",
+          "gym-2026-11-11"
+        ],
+        "excludes": [
+          "study-session"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 67,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "range-last-weekend",
+      "category": "range",
+      "message": "What did I do last weekend?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "hike",
+          "brunch"
+        ],
+        "excludes": [
+          "acme-confirmation"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 52,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "range-friday",
+      "category": "range",
+      "message": "What's on Friday?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "tentative",
+          "gym-2026-11-13"
+        ],
+        "excludes": [
+          "flight-nyc-nov"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 60,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "range-thanksgiving",
+      "category": "range",
+      "message": "Do I have anything on Thanksgiving?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "thanksgiving"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 63,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "range-earlier-today",
+      "category": "range",
+      "message": "What did I have earlier today?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "orbital-interview",
+          "hi"
+        ],
+        "excludes": [
+          "gym-2026-11-11"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 49,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "none-mars",
+      "category": "none",
+      "message": "When did I go to Mars?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "none": true
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 63,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "none-yoga",
+      "category": "none",
+      "message": "When is my next yoga class?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "none": true
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 62,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "typo-next-interview",
+      "category": "typo",
+      "message": "wen is my nxt intervew",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "northwind-interview"
+        ],
+        "excludes": [
+          "orbital-interview"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 52,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "typo-last-dentist",
+      "category": "typo",
+      "message": "wehn was my lst dentst apointment",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dental-checkup"
+        ],
+        "excludes": [
+          "dentist-2026-11-15"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 57,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "intent-free-saturday",
+      "category": "intent",
+      "message": "Am I free Saturday afternoon?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question"
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 56,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "intent-fit-lunch",
+      "category": "intent",
+      "message": "Could I fit in lunch with Amy tomorrow?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question"
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 48,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "create-gym-friday",
+      "category": "create",
+      "message": "Schedule gym at 6 PM Friday",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-13",
+            "startTime": "18:00",
+            "title": "/gym/i",
+            "example": "Gym"
+          }
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 55,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "create-dentist-tomorrow",
+      "category": "create",
+      "message": "add dentist tomorrow at 9am",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-11",
+            "startTime": "09:00",
+            "title": "/dentist|dental/i",
+            "example": "Dentist"
+          }
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 65,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "create-lunch-amy",
+      "category": "create",
+      "message": "lunch with Amy next Tuesday 12:30 to 1:30",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-17",
+            "startTime": "12:30",
+            "endTime": "13:30",
+            "title": "/lunch|amy/i",
+            "example": "Lunch with Amy"
+          }
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 50,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "create-dinner-dec5",
+      "category": "create",
+      "message": "create a calendar event dinner on dec 5 at 7pm",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-12-05",
+            "startTime": "19:00",
+            "title": "/dinner/i",
+            "example": "Dinner"
+          }
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 83,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "create-prof-tmrw",
+      "category": "create",
+      "message": "meeting with prof tmrw at 3",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-11",
+            "startTime": "15:00",
+            "title": "/prof|meeting/i",
+            "example": "Meeting with Professor"
+          }
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 62,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "create-study-saturday",
+      "category": "create",
+      "message": "Study for CS 170 on Saturday 2-4pm",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-14",
+            "startTime": "14:00",
+            "endTime": "16:00",
+            "title": "/study|cs ?170/i",
+            "example": "Study for CS 170"
+          }
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 58,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "delete-dinner-next-week",
+      "category": "delete",
+      "message": "delete my dinner with John next week",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "delete",
+        "ids": [
+          "dinner-john-nov"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 56,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "delete-northwind",
+      "category": "delete",
+      "message": "cancel the interview with Northwind",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "delete",
+        "ids": [
+          "northwind-interview"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 57,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    },
+    {
+      "id": "delete-gym-this-week",
+      "category": "delete",
+      "message": "remove my upcoming gym sessions this week",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "delete",
+        "ids": [
+          "gym-2026-11-11",
+          "gym-2026-11-13"
+        ]
+      },
+      "result": null,
+      "error": "Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+      "latencyMs": 61,
+      "pass": false,
+      "reasons": [
+        "error: Groq API error 404: The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."
+      ]
+    }
+  ]
+}

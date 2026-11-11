@@ -1,0 +1,1298 @@
+{
+  "engine": "prompt-v0",
+  "model": "claude-haiku-5-5",
+  "startedAt": "2026-11-11T02-29-19-748Z",
+  "now": "2026-11-10T17:27",
+  "timeZone": "America/Los_Angeles",
+  "summary": {
+    "passed": 28,
+    "total": 37,
+    "accuracy": 0.7567567567567568,
+    "avgLatencyMs": 1607,
+    "usage": {
+      "calls": 37,
+      "promptTokens": 144601,
+      "completionTokens": 10058,
+      "cacheReadTokens": 0
+    },
+    "byCategory": {
+      "next": {
+        "passed": 3,
+        "total": 7
+      },
+      "last": {
+        "passed": 3,
+        "total": 4
+      },
+      "now": {
+        "passed": 0,
+        "total": 1
+      },
+      "keyword": {
+        "passed": 4,
+        "total": 5
+      },
+      "range": {
+        "passed": 4,
+        "total": 5
+      },
+      "none": {
+        "passed": 2,
+        "total": 2
+      },
+      "typo": {
+        "passed": 1,
+        "total": 2
+      },
+      "create": {
+        "passed": 6,
+        "total": 6
+      },
+      "delete": {
+        "passed": 3,
+        "total": 3
+      },
+      "intent": {
+        "passed": 2,
+        "total": 2
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "next-anything",
+      "category": "next",
+      "message": "What's next on my calendar?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "gym-2026-11-11"
+        ],
+        "excludes": [
+          "orbital-interview",
+          "hi",
+          "study-session"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Today (Tue, Nov 10) you have: CS 170 Lecture at 11:00 AM in Soda Hall 306, a Busy block at 12:00 PM, and your Interview with Orbital Labs at 1:30 PM. Later you have Hi at 4:00 PM and a Study session at 5:00 PM.",
+        "eventIds": [
+          "lecture-2026-11-10",
+          "orbital-interview",
+          "study-session"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6356
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 2624,
+      "pass": false,
+      "reasons": [
+        "missing gym-2026-11-11",
+        "should not include orbital-interview",
+        "should not include study-session"
+      ]
+    },
+    {
+      "id": "next-interview",
+      "category": "next",
+      "message": "whats my next interview",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "northwind-interview"
+        ],
+        "excludes": [
+          "orbital-interview"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your next interview is Interview with Orbital Labs today, Tuesday, Nov 10, from 1:30 PM to 2:30 PM (link: https://app.coderpad.io/DEMO-1234). After that, you have Interview Northwind on Wed, Nov 11 at 3:00 PM, and Interview with Harbor Robotics on Thu, Nov 12 at 1:30 PM.",
+        "eventIds": [
+          "orbital-interview",
+          "northwind-interview",
+          "harbor-interview"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6352
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 2020,
+      "pass": false,
+      "reasons": [
+        "should not include orbital-interview"
+      ]
+    },
+    {
+      "id": "next-dentist",
+      "category": "next",
+      "message": "When is my next dentist appointment?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dentist-2026-11-15"
+        ],
+        "excludes": [
+          "dentist-2026-09-14",
+          "dental-checkup"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your next dentist appointment is the dentist cleaning at Bright Smile Dental on Sunday, Nov 15, 2026, from 10:00 AM to 11:00 AM.",
+        "eventIds": [
+          "dentist-2026-11-15"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6365
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1354,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "next-class",
+      "category": "next",
+      "message": "When is my next class?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "lecture-2026-11-12"
+        ],
+        "excludes": [
+          "lecture-2026-11-10"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your next class is CS 170 Lecture today, Tuesday, Nov 10, 11:00 AM to 12:30 PM in Soda Hall 306. After that, the next one is Thursday, Nov 12, at the same time and place.",
+        "eventIds": [
+          "lecture-2026-11-10",
+          "lecture-2026-11-12"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6351
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 2322,
+      "pass": false,
+      "reasons": [
+        "should not include lecture-2026-11-10"
+      ]
+    },
+    {
+      "id": "next-dinner-john",
+      "category": "next",
+      "message": "When is my next dinner with John?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dinner-john-nov"
+        ],
+        "excludes": [
+          "dinner-john-oct"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your next dinner with John is Tuesday, Nov 17, 2026, from 7:00 PM to 8:30 PM.",
+        "eventIds": [
+          "dinner-john-nov"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6362
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1076,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "next-while-in-progress",
+      "category": "next",
+      "message": "what's next",
+      "now": "2026-11-12T14:00",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "long-horizon-talk"
+        ],
+        "excludes": [
+          "harbor-interview",
+          "lecture-2026-11-12"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Today's next event is the Interview with Harbor Robotics at 1:30 PM, followed by the Robotics seminar at 4:00 PM. If it's still before 11:00 AM, the CS 170 lecture at 11:00 AM comes first.",
+        "eventIds": [
+          "harbor-interview",
+          "long-horizon-talk"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6341
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 2267,
+      "pass": false,
+      "reasons": [
+        "should not include harbor-interview"
+      ]
+    },
+    {
+      "id": "next-dentist-same-day",
+      "category": "next",
+      "message": "When is my next dentist appointment?",
+      "now": "2026-11-15T09:30",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dentist-2026-11-15"
+        ],
+        "excludes": [
+          "dental-checkup"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your next dentist appointment is today, Sunday, Nov 15, from 10:00 to 11:00 AM at Bright Smile Dental.",
+        "eventIds": [
+          "dentist-2026-11-15"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6364
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1365,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "last-interview",
+      "category": "last",
+      "message": "When was my last interview?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "orbital-interview"
+        ],
+        "excludes": [
+          "northwind-interview",
+          "harbor-interview"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your most recent interview is Interview with Orbital Labs today (Tue, Nov 10) from 1:30 PM to 2:30 PM. You have no interviews before that. Your next ones are Interview Northwind on Wed, Nov 11 and Interview with Harbor Robotics on Thu, Nov 12.",
+        "eventIds": [
+          "orbital-interview"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6356
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 2497,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "last-dentist",
+      "category": "last",
+      "message": "When was my last dentist appointment?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dental-checkup"
+        ],
+        "excludes": [
+          "dentist-2026-11-15"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your most recent dentist appointment was the Dental checkup on Tue, Oct 20, 2026, 3:00 PM to 4:00 PM at Bright Smile Dental. Your next one is the Dentist cleaning on Sun, Nov 15, 2026, 10:00 AM to 11:00 AM.",
+        "eventIds": [
+          "dental-checkup",
+          "dentist-2026-11-15"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6366
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1839,
+      "pass": false,
+      "reasons": [
+        "should not include dentist-2026-11-15"
+      ]
+    },
+    {
+      "id": "last-haircut",
+      "category": "last",
+      "message": "When was my last haircut?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "haircut"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your last haircut was Saturday, October 24, 2026, from 12:00 PM to 12:45 PM.",
+        "eventIds": [
+          "haircut"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6354
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1082,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "last-dentist-same-day",
+      "category": "last",
+      "message": "When was my last dentist appointment?",
+      "now": "2026-11-15T12:00",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dentist-2026-11-15"
+        ],
+        "excludes": [
+          "dentist-2026-09-14"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your most recent dentist appointment before today was the dental checkup at Bright Smile Dental on Tue, Oct 20, 2026, 3:00 to 4:00 PM. You also have a dentist cleaning at Bright Smile Dental today, Sun, Nov 15, 10:00 to 11:00 AM, so if that one has already happened, it is the most recent.",
+        "eventIds": [
+          "dental-checkup",
+          "dentist-2026-11-15"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6365
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 2471,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "now-right-now",
+      "category": "now",
+      "message": "What am I doing right now?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "study-session"
+        ],
+        "excludes": [
+          "hi",
+          "gym-2026-11-11"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "I can't see the current time, so I can't say for sure. Today (Tue, Nov 10) you have: CS 170 Lecture 11:00–12:30 at Soda Hall 306, Busy 12:00–12:30, Interview with Orbital Labs 1:30–2:30 PM, Hi 4:00–5:00 PM, and Study session 5:00–6:30 PM. If it's between 1:30 and 2:30 PM, you're likely in the Orbital Labs interview.",
+        "eventIds": [
+          "lecture-2026-11-10",
+          "busy-2026-11-10",
+          "orbital-interview"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6355
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 3053,
+      "pass": false,
+      "reasons": [
+        "missing study-session"
+      ]
+    },
+    {
+      "id": "keyword-doctor",
+      "category": "keyword",
+      "message": "When did I last see the doctor?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "physical"
+        ],
+        "excludes": [
+          "patel-followup"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "You last saw the doctor on Friday, October 2, 2026, for your annual physical with Dr. Patel (9:00 AM). Your next doctor visit is a Dr. Patel follow-up on Thursday, December 3, 2026, at 9:30 AM.",
+        "eventIds": [
+          "physical",
+          "patel-followup"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6360
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 2134,
+      "pass": false,
+      "reasons": [
+        "should not include patel-followup"
+      ]
+    },
+    {
+      "id": "keyword-new-york",
+      "category": "keyword",
+      "message": "When am I flying to New York?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "flight-nyc-nov"
+        ],
+        "excludes": [
+          "flight-nyc-aug"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "You're flying to NYC on Friday, November 20, 2026, departing SFO at 8:15 AM and landing at 1:45 PM. (You also have an earlier NYC flight on August 20, 2026, which has already passed.)",
+        "eventIds": [
+          "flight-nyc-nov"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6358
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1649,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "keyword-mom-birthday",
+      "category": "keyword",
+      "message": "When is my mom's birthday?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "moms-birthday"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your mom's birthday is Saturday, November 14, 2026 (all day).",
+        "eventIds": [
+          "moms-birthday"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6355
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 839,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "keyword-cs170-final",
+      "category": "keyword",
+      "message": "When is my CS 170 final?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "cs170-final"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your CS 170 Final Exam is on Thursday, December 17, 2026, from 8:00 AM to 11:00 AM in Soda Hall 306.",
+        "eventIds": [
+          "cs170-final"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6353
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 786,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "keyword-orbital-time",
+      "category": "keyword",
+      "message": "What time is the Orbital Labs interview?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "orbital-interview"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "The Orbital Labs interview is today, Tuesday, Nov 10, 2026, from 1:30 PM to 2:30 PM. The meeting link is https://app.coderpad.io/DEMO-1234.",
+        "eventIds": [
+          "orbital-interview"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6369
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 997,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "range-tomorrow",
+      "category": "range",
+      "message": "What do I have tomorrow?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "northwind-interview",
+          "gym-2026-11-11"
+        ],
+        "excludes": [
+          "study-session"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Tomorrow (Wed, Nov 11) you have: Gym 7:00-8:00 AM, Busy 8:00-8:30 AM, and Interview Northwind 3:00-4:00 PM.",
+        "eventIds": [
+          "gym-2026-11-11",
+          "busy-2026-11-11",
+          "northwind-interview"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6353
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1550,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "range-last-weekend",
+      "category": "range",
+      "message": "What did I do last weekend?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "hike",
+          "brunch"
+        ],
+        "excludes": [
+          "acme-confirmation"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Last weekend (Sat Nov 7 and Sun Nov 8) you went on a hike at Mission Peak from 9:00 AM to 12:00 PM on Saturday, and had brunch with Sarah from 11:00 AM to 12:30 PM on Sunday. You also had a 'Free' block from 8:00 to 8:30 AM on Sunday.",
+        "eventIds": [
+          "hike",
+          "brunch",
+          "free-2026-11-08"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6356
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1700,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "range-friday",
+      "category": "range",
+      "message": "What's on Friday?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "tentative",
+          "gym-2026-11-13"
+        ],
+        "excludes": [
+          "flight-nyc-nov"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "On Friday, Nov 13, you have Gym from 7:00 to 8:00 AM and a Tentative event from 9:00 to 9:30 AM.",
+        "eventIds": [
+          "gym-2026-11-13",
+          "tentative"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6346
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1665,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "range-thanksgiving",
+      "category": "range",
+      "message": "Do I have anything on Thanksgiving?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "thanksgiving"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Yes, you have Thanksgiving on Thursday, Nov 26, 2026, all day. Nothing else is scheduled that day.",
+        "eventIds": [
+          "thanksgiving"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6364
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1336,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "range-earlier-today",
+      "category": "range",
+      "message": "What did I have earlier today?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "orbital-interview",
+          "hi"
+        ],
+        "excludes": [
+          "gym-2026-11-11"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Today (Tue, Nov 10) you have: CS 170 Lecture at 11:00 AM–12:30 PM in Soda Hall 306; a Busy block at 12:00–12:30 PM; and the Orbital Labs interview at 1:30–2:30 PM. Later today you also have \"Hi\" at 4:00–5:00 PM and a Study session at 5:00–6:30 PM.",
+        "eventIds": [
+          "lecture-2026-11-10",
+          "busy-2026-11-10",
+          "orbital-interview"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6359
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 2320,
+      "pass": false,
+      "reasons": [
+        "missing hi"
+      ]
+    },
+    {
+      "id": "none-mars",
+      "category": "none",
+      "message": "When did I go to Mars?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "none": true
+      },
+      "result": {
+        "intent": "question",
+        "answer": "You don't have any calendar events about going to Mars. Your calendar only includes events like flights to NYC, interviews, and classes.",
+        "eventIds": [],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6351
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 863,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "none-yoga",
+      "category": "none",
+      "message": "When is my next yoga class?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "none": true
+      },
+      "result": {
+        "intent": "question",
+        "answer": "I don't see any yoga classes on your calendar.",
+        "eventIds": [],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6356
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1054,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "typo-next-interview",
+      "category": "typo",
+      "message": "wen is my nxt intervew",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "northwind-interview"
+        ],
+        "excludes": [
+          "orbital-interview"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your next interview is today, Tuesday Nov 10, at 1:30 PM with Orbital Labs. After that you have Northwind on Wed Nov 11 at 3:00 PM and Harbor Robotics on Thu Nov 12 at 1:30 PM.",
+        "eventIds": [
+          "orbital-interview",
+          "northwind-interview",
+          "harbor-interview"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6351
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1987,
+      "pass": false,
+      "reasons": [
+        "should not include orbital-interview"
+      ]
+    },
+    {
+      "id": "typo-last-dentist",
+      "category": "typo",
+      "message": "wehn was my lst dentst apointment",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question",
+        "includes": [
+          "dental-checkup"
+        ],
+        "excludes": [
+          "dentist-2026-11-15"
+        ]
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Your last dentist appointment was the Dental checkup on Tuesday, Oct 20, 2026, from 3:00 PM to 4:00 PM at Bright Smile Dental. Your next one is the Dentist cleaning on Sunday, Nov 15, 2026, at 10:00 AM.",
+        "eventIds": [
+          "dental-checkup"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6362
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1847,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "intent-free-saturday",
+      "category": "intent",
+      "message": "Am I free Saturday afternoon?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question"
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Yes, you're free Saturday afternoon (Nov 14). The only thing that day is Mom's birthday, which is all day.",
+        "eventIds": [
+          "moms-birthday"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6358
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1725,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "intent-fit-lunch",
+      "category": "intent",
+      "message": "Could I fit in lunch with Amy tomorrow?",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "question"
+      },
+      "result": {
+        "intent": "question",
+        "answer": "Yes, you're free for lunch with Amy tomorrow (Wed, Nov 11). Your only commitments that day are a gym session at 7:00 AM, a busy block at 8:00 AM, and the Northwind interview at 3:00 PM, so anything from about 11:00 AM to 2:30 PM works.",
+        "eventIds": [
+          "gym-2026-11-11",
+          "busy-2026-11-11",
+          "northwind-interview"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6368
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 2239,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "create-gym-friday",
+      "category": "create",
+      "message": "Schedule gym at 6 PM Friday",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-13",
+            "startTime": "18:00",
+            "title": "/gym/i",
+            "example": "Gym"
+          }
+        ]
+      },
+      "result": {
+        "intent": "create",
+        "events": [
+          {
+            "title": "Gym",
+            "date": "2026-11-13",
+            "startTime": "18:00",
+            "endTime": "19:00",
+            "description": "",
+            "location": ""
+          }
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6356
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1262,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "create-dentist-tomorrow",
+      "category": "create",
+      "message": "add dentist tomorrow at 9am",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-11",
+            "startTime": "09:00",
+            "title": "/dentist|dental/i",
+            "example": "Dentist"
+          }
+        ]
+      },
+      "result": {
+        "intent": "create",
+        "events": [
+          {
+            "title": "Dentist",
+            "date": "2026-11-11",
+            "startTime": "09:00",
+            "endTime": "10:00",
+            "description": "",
+            "location": ""
+          }
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6356
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1108,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "create-lunch-amy",
+      "category": "create",
+      "message": "lunch with Amy next Tuesday 12:30 to 1:30",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-17",
+            "startTime": "12:30",
+            "endTime": "13:30",
+            "title": "/lunch|amy/i",
+            "example": "Lunch with Amy"
+          }
+        ]
+      },
+      "result": {
+        "intent": "create",
+        "events": [
+          {
+            "title": "Lunch with Amy",
+            "date": "2026-11-17",
+            "startTime": "12:30",
+            "endTime": "13:30",
+            "description": "",
+            "location": ""
+          }
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6370
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1198,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "create-dinner-dec5",
+      "category": "create",
+      "message": "create a calendar event dinner on dec 5 at 7pm",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-12-05",
+            "startTime": "19:00",
+            "title": "/dinner/i",
+            "example": "Dinner"
+          }
+        ]
+      },
+      "result": {
+        "intent": "create",
+        "events": [
+          {
+            "title": "Dinner",
+            "date": "2026-12-05",
+            "startTime": "19:00",
+            "endTime": "20:00",
+            "description": "",
+            "location": ""
+          }
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6375
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 963,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "create-prof-tmrw",
+      "category": "create",
+      "message": "meeting with prof tmrw at 3",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-11",
+            "startTime": "15:00",
+            "title": "/prof|meeting/i",
+            "example": "Meeting with Professor"
+          }
+        ]
+      },
+      "result": {
+        "intent": "create",
+        "events": [
+          {
+            "title": "Meeting with prof",
+            "date": "2026-11-11",
+            "startTime": "15:00",
+            "endTime": "16:00",
+            "description": "",
+            "location": ""
+          }
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6356
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1560,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "create-study-saturday",
+      "category": "create",
+      "message": "Study for CS 170 on Saturday 2-4pm",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "create",
+        "events": [
+          {
+            "date": "2026-11-14",
+            "startTime": "14:00",
+            "endTime": "16:00",
+            "title": "/study|cs ?170/i",
+            "example": "Study for CS 170"
+          }
+        ]
+      },
+      "result": {
+        "intent": "create",
+        "events": [
+          {
+            "title": "Study for CS 170",
+            "date": "2026-11-14",
+            "startTime": "14:00",
+            "endTime": "16:00",
+            "description": "",
+            "location": ""
+          }
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6363
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1339,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "delete-dinner-next-week",
+      "category": "delete",
+      "message": "delete my dinner with John next week",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "delete",
+        "ids": [
+          "dinner-john-nov"
+        ]
+      },
+      "result": {
+        "intent": "delete",
+        "eventIds": [
+          "dinner-john-nov"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6365
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1195,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "delete-northwind",
+      "category": "delete",
+      "message": "cancel the interview with Northwind",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "delete",
+        "ids": [
+          "northwind-interview"
+        ]
+      },
+      "result": {
+        "intent": "delete",
+        "eventIds": [
+          "northwind-interview"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6364
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 729,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "delete-gym-this-week",
+      "category": "delete",
+      "message": "remove my upcoming gym sessions this week",
+      "now": "2026-11-10T17:27",
+      "expect": {
+        "intent": "delete",
+        "ids": [
+          "gym-2026-11-11",
+          "gym-2026-11-13"
+        ]
+      },
+      "result": {
+        "intent": "delete",
+        "eventIds": [
+          "gym-2026-11-11",
+          "gym-2026-11-13"
+        ],
+        "trace": [
+          {
+            "step": "prompt",
+            "promptChars": 6370
+          }
+        ]
+      },
+      "error": null,
+      "latencyMs": 1461,
+      "pass": true,
+      "reasons": []
+    }
+  ]
+}

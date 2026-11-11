@@ -30,3 +30,32 @@ html, body {
   scrollbar-width: thin;
   scrollbar-color: #DDD7CB transparent;
 }
+
+/* Visible keyboard focus everywhere (mouse clicks don't show it) */
+:focus-visible {
+  outline: 2px solid #C4502B;
+  outline-offset: 2px;
+}
+textarea:focus-visible,
+input:focus-visible {
+  outline: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+html, body {
+  overscroll-behavior-y: none;
+}

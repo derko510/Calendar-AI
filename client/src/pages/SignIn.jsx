@@ -1,19 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { hasSignedInBefore, signIn } from '../services/auth';
 
-const SignIn = ({ onLoginSuccess }) => {
+const SCOPES = [
+  'openid',
+  'email',
+  'profile',
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.readonly'
+].join(' ');
+
+const SignIn = ({ onLoginSuccess, notice = '' }) => {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const isGoogleConfigured = Boolean(googleClientId && googleClientId !== 'your-google-client-id');
-  const tokenClientRef = useRef(null);
-  const [isGoogleReady, setIsGoogleReady] = useState(false);
+  const [isGoogleReady, setIsGoogleReady] = useState(() => Boolean(window.google?.accounts?.oauth2));
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState('');
+  // Google only hands out a refresh token on the full consent screen, so ask for it the first time
+  // (or when the server says it has no refresh token for this browser); otherwise just pick the account
+  const [needsConsent, setNeedsConsent] = useState(() => !hasSignedInBefore());
 
   useEffect(() => {
+    if (window.google?.accounts?.oauth2) return undefined;
     // Load Google Identity Services
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.defer = true;
-    script.onload = initializeGoogleAuth;
+    script.onload = () => setIsGoogleReady(Boolean(window.google?.accounts?.oauth2));
+    script.onerror = () => setAuthError('Could not load Google sign-in. Check your connection and reload.');
     document.head.appendChild(script);
 
     return () => {
@@ -23,54 +37,40 @@ const SignIn = ({ onLoginSuccess }) => {
     };
   }, []);
 
-  const initializeGoogleAuth = () => {
-    if (window.google && isGoogleConfigured) {
-      tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-        client_id: googleClientId,
-        scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
-        callback: handleTokenResponse,
-      });
-      setIsGoogleReady(true);
-    }
-  };
-
-  const handleTokenResponse = async (tokenResponse) => {
-    if (tokenResponse?.error) {
-      setAuthError(tokenResponse.error_description || tokenResponse.error);
+  const handleCodeResponse = async (response) => {
+    if (response?.error) {
+      setIsSigningIn(false);
+      setAuthError(response.error === 'access_denied' ? 'Sign-in was cancelled.' : (response.error_description || response.error));
       return;
     }
-
-    if (!tokenResponse?.access_token) {
-      setAuthError('Google did not return an access token.');
+    if (!response?.code) {
+      setIsSigningIn(false);
+      setAuthError('Google did not return an authorization code.');
+      return;
+    }
+    const oauth2 = window.google?.accounts?.oauth2;
+    if (oauth2?.hasGrantedAllScopes && !oauth2.hasGrantedAllScopes(response, 'https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.readonly')) {
+      setIsSigningIn(false);
+      setNeedsConsent(true);
+      setAuthError('Calendar access is needed. Sign in again and tick both calendar boxes.');
       return;
     }
 
     try {
-      const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: {
-          Authorization: `Bearer ${tokenResponse.access_token}`,
-        },
-      });
-
-      const profile = profileResponse.ok ? await profileResponse.json() : {};
-      const expiresAt = Date.now() + Number(tokenResponse.expires_in || 3600) * 1000;
-      const userData = {
-        accessToken: tokenResponse.access_token,
-        expiresAt,
-        tokenType: tokenResponse.token_type || 'Bearer',
-        scope: tokenResponse.scope,
-        id: profile.id,
-        email: profile.email,
-        name: profile.name,
-        picture: profile.picture,
-        profile,
-      };
-
-      localStorage.setItem('googleAuth', JSON.stringify(userData));
-      onLoginSuccess(userData);
+      const credential = await signIn(response.code);
+      onLoginSuccess(credential);
     } catch (error) {
-      console.error('Google sign-in failed:', error);
-      setAuthError('Google sign-in worked, but profile loading failed. Try again.');
+      setIsSigningIn(false);
+      if (error?.code === 'consent_required') {
+        setNeedsConsent(true);
+        setAuthError('Google needs you to approve calendar access once more. Click Continue with Google again.');
+      } else if (error?.code === 'not_allowed') {
+        setAuthError('This Google account isn’t allowed to use this calendar. Try the demo instead.');
+      } else if (error?.code === 'auth_not_configured') {
+        setAuthError('Sign-in is not set up on the server (GOOGLE_CLIENT_SECRET / SESSION_SECRET).');
+      } else {
+        setAuthError('Google sign-in failed. Try again.');
+      }
     }
   };
 
@@ -80,13 +80,27 @@ const SignIn = ({ onLoginSuccess }) => {
       return;
     }
 
-    if (!tokenClientRef.current) {
+    const oauth2 = window.google?.accounts?.oauth2;
+    if (!oauth2) {
       setAuthError('Google sign-in is still loading. Try again in a moment.');
       return;
     }
 
     setAuthError('');
-    tokenClientRef.current.requestAccessToken({ prompt: 'consent' });
+    setIsSigningIn(true);
+    // Built per click so the prompt matches the current need; requestCode() must run inside the click
+    const codeClient = oauth2.initCodeClient({
+      client_id: googleClientId,
+      scope: SCOPES,
+      ux_mode: 'popup',
+      ...(needsConsent ? { prompt: 'consent' } : { select_account: true }),
+      callback: handleCodeResponse,
+      error_callback: (err) => {
+        setIsSigningIn(false);
+        if (err?.type !== 'popup_closed') setAuthError('The Google sign-in window could not open. Allow pop-ups and try again.');
+      },
+    });
+    codeClient.requestCode();
   };
 
   const today = new Date();
@@ -113,7 +127,7 @@ const SignIn = ({ onLoginSuccess }) => {
             <div className="mt-10 flex flex-col sm:flex-row sm:items-center gap-4">
               <button
                 onClick={handleGoogleSignIn}
-                disabled={!isGoogleConfigured || !isGoogleReady}
+                disabled={!isGoogleConfigured || !isGoogleReady || isSigningIn}
                 className="inline-flex shrink-0 whitespace-nowrap items-center justify-center gap-3 rounded-full bg-ink px-6 py-3.5 text-[15px] font-medium text-paper hover:bg-ink-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-paper transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <svg className="w-[18px] h-[18px] rounded-full bg-white p-[2px]" viewBox="0 0 24 24" aria-hidden="true">
@@ -129,12 +143,20 @@ const SignIn = ({ onLoginSuccess }) => {
                   ? 'Google client ID missing (VITE_GOOGLE_CLIENT_ID).'
                   : !isGoogleReady
                   ? 'Loading Google sign-in…'
+                  : isSigningIn
+                  ? 'Signing you in…'
                   : 'Read & write access to your calendar.'}
               </p>
             </div>
-            {authError && (
-              <p className="mt-4 text-sm text-accent">{authError}</p>
+            {(authError || notice) && (
+              <p className="mt-4 text-sm text-accent" role="alert">{authError || notice}</p>
             )}
+            <p className="mt-6 text-sm text-muted">
+              Just looking?{' '}
+              <a href="/?demo" className="text-ink underline underline-offset-4 decoration-line hover:decoration-ink transition-colors">
+                Try the demo
+              </a>
+            </p>
           </div>
 
           {/* A quiet preview of what the app does */}
@@ -159,7 +181,7 @@ const SignIn = ({ onLoginSuccess }) => {
       </main>
 
       <footer className="px-6 sm:px-10 py-6 text-xs text-muted">
-        Secure sign-in through Google. Sign out anytime.
+        Secure sign-in through Google. You stay signed in on this device until you sign out.
       </footer>
     </div>
   );
