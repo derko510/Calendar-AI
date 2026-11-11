@@ -1,18 +1,27 @@
 import { useState, useId } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useDialogDirty } from '../hooks/useDialogGuard';
 
-const inputClass = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink placeholder:text-muted/70 focus:border-[#CFC7B8] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40';
+const inputBase = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-ink placeholder:text-muted focus:border-[#CFC7B8] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40';
+// 16px on phones: iOS Safari zooms into any focused input smaller than that
+const inputClass = `${inputBase} text-[16px] sm:text-[14px]`;
 const labelClass = 'block text-[11px] font-medium uppercase tracking-[0.08em] text-muted mb-1';
 
 /**
  * Create / edit form. `initial` comes from utils/eventForm (formValuesFromRange / formValuesFromEvent).
- * onSubmit(values) may throw; its message is shown inline.
+ * onSubmit(values, { sendUpdates }) may throw; its message is shown inline.
+ * askNotify: the event has guests, so saving first asks whether to email them (sendUpdates all | none).
+ * Unsaved changes are reported to the enclosing Dialog, which then confirms before Esc / backdrop close.
  */
-const EventForm = ({ initial, heading, headingId, submitLabel = 'Save', onSubmit, onCancel, note }) => {
+const EventForm = ({ initial, heading, headingId, submitLabel = 'Save', onSubmit, onCancel, note, askNotify = false }) => {
   const [values, setValues] = useState(initial);
+  const [baseline] = useState(() => JSON.stringify(initial));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [notifyStep, setNotifyStep] = useState(false);
   const uid = useId();
+  const dirty = JSON.stringify(values) !== baseline;
+  useDialogDirty(dirty);
 
   const set = (key) => (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -27,6 +36,11 @@ const EventForm = ({ initial, heading, headingId, submitLabel = 'Save', onSubmit
           next.endDate = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
         }
       }
+      // Unticking "All day" on an all-day event: give it a sensible hour instead of midnight–midnight
+      if (key === 'allDay' && !value && prev.startTime === prev.endTime) {
+        next.startTime = '09:00';
+        next.endTime = '10:00';
+      }
       // Moving the start time keeps the duration
       if (key === 'startTime' && prev.startTime && prev.endTime && value && prev.startDate === prev.endDate) {
         const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
@@ -40,17 +54,24 @@ const EventForm = ({ initial, heading, headingId, submitLabel = 'Save', onSubmit
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const submit = async (options = {}) => {
     if (saving) return;
+    setNotifyStep(false);
     setSaving(true);
     setError(null);
     try {
-      await onSubmit(values);
+      await onSubmit(values, options);
     } catch (err) {
       setError(err?.message || 'Something went wrong.');
       setSaving(false);
     }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (saving) return;
+    if (askNotify && dirty) { setNotifyStep(true); return; }
+    submit();
   };
 
   const onKeyDown = (e) => {
@@ -71,7 +92,7 @@ const EventForm = ({ initial, heading, headingId, submitLabel = 'Save', onSubmit
           value={values.title}
           onChange={set('title')}
           placeholder="Add title"
-          className={`${inputClass} text-[16px] font-medium`}
+          className={`${inputBase} text-[16px] font-medium`}
           autoComplete="off"
         />
       </div>
@@ -116,6 +137,22 @@ const EventForm = ({ initial, heading, headingId, submitLabel = 'Save', onSubmit
       {note && <p className="text-xs text-muted">{note}</p>}
       {error && <p role="alert" className="text-sm text-[#6B2E17] border-l-2 border-accent pl-2.5">{error}</p>}
 
+      {notifyStep ? (
+        <div role="group" aria-label="Notify guests?" className="rounded-xl border border-line bg-paper p-3">
+          <p className="text-sm text-ink">Email the guests about this change?</p>
+          <div className="mt-2.5 flex flex-wrap items-center justify-end gap-2">
+            <button type="button" onClick={() => setNotifyStep(false)} className="rounded-full px-3 py-1.5 text-sm font-medium text-muted hover:text-ink hover:bg-surface transition-colors">
+              Back
+            </button>
+            <button type="button" onClick={() => submit({ sendUpdates: 'none' })} className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm font-medium text-ink-soft hover:bg-paper transition-colors">
+              Don’t send
+            </button>
+            <button type="button" autoFocus onClick={() => submit({ sendUpdates: 'all' })} className="rounded-full bg-ink px-4 py-1.5 text-sm font-medium text-paper hover:bg-ink-soft transition-colors">
+              Send
+            </button>
+          </div>
+        </div>
+      ) : (
       <div className="flex items-center justify-end gap-2 pt-1">
         <button type="button" onClick={onCancel} className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink-soft hover:bg-paper transition-colors">
           Cancel
@@ -125,6 +162,7 @@ const EventForm = ({ initial, heading, headingId, submitLabel = 'Save', onSubmit
           {submitLabel}
         </button>
       </div>
+      )}
     </form>
   );
 };

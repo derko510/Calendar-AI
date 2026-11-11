@@ -119,47 +119,47 @@ export function buildDemoEvents(now = new Date()) {
   timed(nowStart, new Date(nowStart.getTime() + 75 * 60000), {
     id: 'demonowfocus',
     summary: 'Focus block: portfolio site',
-    description: 'Ship the projects page. Repo: https://github.com/example/portfolio — design in https://www.figma.com/file/DemoPortfolio'
+    description: 'Ship the projects page. Repo: https://github.com/example/portfolio — design in the design file shared in the team folder'
   });
 
   // ---- Interviews ----
   timed(at(-24, 14), at(-24, 14, 30), {
-    summary: 'Recruiter screen — Figma',
-    description: 'Phone screen with Dana (recruiting).\nJob posting: https://www.figma.com/careers/',
+    summary: 'Recruiter screen — Northwind',
+    description: 'Phone screen with Dana (recruiting).\nJob posting: https://careers.northwind.example/roles/frontend',
     ...meet('xbd-pqrs-tuv'),
     calendarName: 'Job search'
   });
   timed(at(-10, 13), at(-10, 14), {
-    summary: 'Technical interview — Stripe (Backend)',
+    summary: 'Technical interview — Orbital Labs (Backend)',
     location: 'https://zoom.us/j/81234567890',
-    description: 'Live coding round. Pad: https://app.coderpad.io/DEMO7Q2X\nPrep notes: https://docs.google.com/document/d/1DemoStripePrep/edit',
+    description: 'Live coding round. Pad: https://app.coderpad.io/DEMO0001\nPrep notes: https://docs.google.com/document/d/1DemoOrbitalPrep/edit',
     calendarName: 'Job search'
   });
   timed(at(2, 15), at(2, 16), {
-    summary: 'Technical interview — Ramp (Full-stack)',
-    location: 'https://zoom.us/j/98765432109?pwd=UmFtcEludGVydmlldw',
-    description: '<p>Hi! Here is everything for your interview.</p><p><b>Coding pad:</b> <a href="https://app.coderpad.io/RAMP4K9Z">open CoderPad</a></p><p>Questions? Reply to this invite.</p>',
+    summary: 'Technical interview — Harbor Robotics (Full-stack)',
+    location: 'https://zoom.us/j/98765432109?pwd=RGVtb0ludGVydmlldw',
+    description: '<p>Hi! Here is everything for your interview.</p><p><b>Coding pad:</b> <a href="https://app.coderpad.io/DEMO0002">open CoderPad</a></p><p>Questions? Reply to this invite.</p>',
     calendarName: 'Job search',
     attendees: [
       { email: 'you@example.com', self: true, responseStatus: 'accepted' },
-      { email: 'jordan@ramp.example', displayName: 'Jordan Lee', responseStatus: 'accepted' },
-      { email: 'recruiting@ramp.example', displayName: 'Ramp Recruiting', responseStatus: 'needsAction' }
+      { email: 'jordan@harborrobotics.example.com', displayName: 'Jordan Lee', responseStatus: 'accepted' },
+      { email: 'recruiting@harborrobotics.example.com', displayName: 'Harbor Robotics Recruiting', responseStatus: 'needsAction' }
     ]
   });
   timed(at(5, 10), at(5, 10, 45), {
-    summary: 'System design interview — Datadog',
-    description: 'Whiteboard: https://excalidraw.com/#room=demo-datadog\nInterviewer: Sam Ortiz',
-    ...meet('sys-dsgn-ddg'),
+    summary: 'System design interview — Acme Cloud',
+    description: 'Whiteboard: https://excalidraw.com/#room=demo-acme\nInterviewer: Sam Ortiz',
+    ...meet('sys-dsgn-acm'),
     calendarName: 'Job search'
   });
   timed(at(12, 9, 30), at(12, 15), {
-    summary: 'Onsite loop — Notion (4 rounds, lunch included)',
-    location: 'Notion, 2300 Harrison St, San Francisco',
-    description: 'Schedule: https://notion.example.com/onsite-schedule\nCheck in at the front desk 15 min early.',
+    summary: 'Onsite loop — Lumen Systems (4 rounds, lunch included)',
+    location: 'Lumen Systems, 100 Example Ave, San Francisco',
+    description: 'Schedule: https://lumen.example.com/onsite-schedule\nCheck in at the front desk 15 min early.',
     calendarName: 'Job search'
   });
   timed(at(19, 16), at(19, 16, 30), {
-    summary: 'Hiring manager chat — Linear',
+    summary: 'Hiring manager chat — Northwind',
     location: 'https://meet.google.com/lin-hmgr-chat',
     calendarName: 'Job search'
   });
@@ -180,11 +180,11 @@ export function buildDemoEvents(now = new Date()) {
   timed(at(3, 14), at(3, 15, 30), {
     summary: 'Quarterly planning review with the platform infrastructure team and stakeholders from finance and design',
     ...meet('qtr-plan-rev'),
-    description: 'Deck: https://docs.google.com/presentation/d/1DemoQuarterlyDeck/edit\nPre-read: https://www.notion.so/Demo-Q-planning',
+    description: 'Deck: https://docs.google.com/presentation/d/1DemoQuarterlyDeck/edit\nPre-read: https://docs.example.com/demo-q-planning',
     calendarName: 'Work'
   });
   timed(at(0, 16, 45), at(0, 17), { summary: 'Call pharmacy', description: 'Refill — Rx #4471' });
-  timed(at(4, 22), at(5, 1), { summary: 'Late flight JFK → SFO', location: 'JFK Terminal 4', description: 'Confirmation ABC123 — https://www.delta.com/mytrips' });
+  timed(at(4, 22), at(5, 1), { summary: 'Late flight JFK → SFO', location: 'JFK Terminal 4', description: 'Confirmation ABC123 — https://airline.example.com/mytrips' });
   timed(at(-1, 18), at(-1, 19), {
     summary: 'Team happy hour',
     location: 'The Wren, 344 Bowery',
@@ -196,9 +196,9 @@ export function buildDemoEvents(now = new Date()) {
 
   // ---- All-day and multi-day ----
   allDay(0, 1, { summary: 'Rent due' });
-  allDay(6, 1, { summary: 'Mom’s birthday 🎂', description: 'Gift idea list: https://www.notion.so/Demo-Gift-Ideas' });
-  allDay(15, 3, { summary: 'React Summit (conference)', location: 'Amsterdam', description: 'Tickets: https://reactsummit.com/' });
-  allDay(-20, 5, { summary: 'Trip to Lisbon ✈️', location: 'Lisbon, Portugal', description: 'Hotel: https://www.booking.com/ — Itinerary: https://docs.google.com/document/d/1DemoLisbon' });
+  allDay(6, 1, { summary: 'Mom’s birthday 🎂', description: 'Gift idea list: https://docs.example.com/demo-gift-ideas' });
+  allDay(15, 3, { summary: 'Frontend Summit (conference)', location: 'Amsterdam', description: 'Tickets: https://summit.example.com/' });
+  allDay(-20, 5, { summary: 'Trip to Lisbon ✈️', location: 'Lisbon, Portugal', description: 'Hotel: https://hotels.example.com/ — Itinerary: https://docs.google.com/document/d/1DemoLisbon' });
   allDay(9, 1, { summary: 'Out of office', calendarName: 'Work' });
   allDay(9, 1, { summary: 'Submit expense report', calendarName: 'Work' });
   allDay(9, 1, { summary: 'Laundry day' });

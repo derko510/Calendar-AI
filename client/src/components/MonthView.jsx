@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { format, addDays, isSameMonth, isToday, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay } from 'date-fns';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { format, addDays, isSameMonth, isToday, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { getEventTone } from '../utils/eventColors';
-import { getEventsForDay, isAllDayRowEvent, getEventStart, getEventEnd, getEventTitle, formatEventRange } from '../utils/eventUtils';
+import { indexEventsByDay, getEventTitle, formatEventRange } from '../utils/eventUtils';
+import { rsvpMarks } from '../utils/rsvp';
 
 const ROW_PX = 20; // height of one event line incl. gap
 const HEADER_PX = 30; // day number
 
-const MonthView = ({ currentDate, events, now, onDayClick, onEventClick, selectedEventId, busyIds }) => {
+const shortTime = (d) => format(d, d.getMinutes() ? 'h:mma' : 'ha').toLowerCase();
+
+const MonthView = memo(function MonthView({ currentDate, events, now, onDayClick, onEventClick, selectedEventId, busyIds }) {
   const bodyRef = useRef(null);
   const [bodyHeight, setBodyHeight] = useState(0);
 
@@ -35,6 +38,9 @@ const MonthView = ({ currentDate, events, now, onDayClick, onEventClick, selecte
 
   const monthStart = new Date(monthMs);
 
+  // Day → events for the 42 visible cells, built once per events/month change (not on every clock tick)
+  const byDay = useMemo(() => indexEventsByDay(events, weeks[0][0], weeks.length * 7), [events, weeks]);
+
   return (
     <div className="h-full flex flex-col">
       <div className="grid grid-cols-7 border-b border-line" aria-hidden="true">
@@ -48,8 +54,8 @@ const MonthView = ({ currentDate, events, now, onDayClick, onEventClick, selecte
       <div ref={bodyRef} className="flex-1 min-h-0 flex flex-col">
         {weeks.map((week, wi) => (
           <div key={wi} className="grid grid-cols-7 flex-1 min-h-[72px]">
-            {week.map(day => {
-              const dayEvents = getEventsForDay(events, day);
+            {week.map((day, di) => {
+              const dayEvents = byDay[wi * 7 + di];
               const inMonth = isSameMonth(day, monthStart);
               const today = isToday(day);
               const overflow = dayEvents.length > capacity;
@@ -67,32 +73,33 @@ const MonthView = ({ currentDate, events, now, onDayClick, onEventClick, selecte
                       onClick={(e) => { e.stopPropagation(); onDayClick(day); }}
                       aria-label={`${format(day, 'EEEE, MMMM d')}${today ? ' (today)' : ''}, ${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}. Open day view`}
                       className={`inline-flex items-center justify-center h-6 min-w-6 px-1 text-[12px] sm:text-[13px] rounded-full transition-colors ${
-                        today ? 'bg-accent text-white font-semibold' : inMonth ? 'text-ink hover:bg-line/60' : 'text-muted/60 hover:bg-line/60'
+                        today ? 'bg-accent text-white font-semibold' : inMonth ? 'text-ink hover:bg-line/60' : 'text-muted hover:bg-line/60'
                       }`}
                     >
                       {format(day, 'd')}
                     </button>
                   </div>
                   <div className="mt-0.5 space-y-0.5">
-                    {visible.map(event => {
+                    {visible.map(({ event, start, end, allDayRow: rowEvent, continuesBefore: continues }) => {
                       const tone = getEventTone(event);
-                      const rowEvent = isAllDayRowEvent(event);
-                      const start = getEventStart(event);
-                      const continues = rowEvent && start < startOfDay(day);
-                      const past = getEventEnd(event) < now;
+                      const past = end < now;
+                      const timeLabel = rowEvent ? null : continues ? `until ${shortTime(end)}` : shortTime(start);
+                      const rsvp = rsvpMarks(event);
                       return (
                         <button
                           type="button"
                           key={event.id}
                           onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
-                          title={[getEventTitle(event), formatEventRange(event), event.location].filter(Boolean).join('\n')}
+                          title={[getEventTitle(event) + rsvp.suffix, formatEventRange(event), event.location].filter(Boolean).join('\n')}
                           className={`w-full h-[18px] flex items-center gap-1 rounded-[4px] px-1 sm:px-1.5 text-[10px] sm:text-[11.5px] leading-none text-left transition hover:brightness-[0.97] ${
-                            rowEvent ? `${tone.block} border-l-2` : 'text-ink-soft hover:bg-line/50'
-                          } ${past ? 'opacity-60' : ''} ${selectedEventId === event.id ? 'ring-2 ring-ink/30' : ''} ${busyIds?.has(event.id) ? 'opacity-40 pointer-events-none' : ''}`}
+                            rowEvent
+                              ? `${tone.block} border-l-2 ${past || rsvp.declined ? 'saturate-[.35]' : ''} ${rsvp.dashed ? 'border-dashed' : ''}`
+                              : `${past || rsvp.declined ? 'text-muted' : 'text-ink-soft'} hover:bg-line/50 ${rsvp.dashed ? 'border border-dashed border-muted/60' : ''}`
+                          } ${selectedEventId === event.id ? 'ring-2 ring-ink/30' : ''} ${busyIds?.has(event.id) ? 'opacity-40 pointer-events-none' : ''}`}
                         >
                           {!rowEvent && <span className={`hidden sm:block w-1.5 h-1.5 rounded-full shrink-0 ${tone.dot}`} aria-hidden="true" />}
-                          {!rowEvent && <span className="hidden md:inline shrink-0 text-muted">{format(start, start.getMinutes() ? 'h:mma' : 'ha').toLowerCase()}</span>}
-                          <span className="truncate font-medium">{continues ? '‹ ' : ''}{getEventTitle(event)}</span>
+                          {!rowEvent && <span className="hidden md:inline shrink-0 text-muted">{timeLabel}</span>}
+                          <span className={`truncate font-medium ${rsvp.declined ? 'line-through' : ''}`}>{continues ? '‹ ' : ''}{getEventTitle(event)}</span>
                         </button>
                       );
                     })}
@@ -116,6 +123,6 @@ const MonthView = ({ currentDate, events, now, onDayClick, onEventClick, selecte
       </div>
     </div>
   );
-};
+});
 
 export default MonthView;

@@ -1,6 +1,6 @@
 // Shared event helpers: start/end parsing, day membership, overlap layout, join links.
 // All math is in the browser's local time zone.
-import { addDays, startOfDay, format, isSameDay } from 'date-fns';
+import { addDays, startOfDay, format, isSameDay, differenceInCalendarDays } from 'date-fns';
 import { findUrls, safeHref } from './linkify';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -63,30 +63,68 @@ export const sortEvents = (a, b) => {
   return (getEventEnd(b) - getEventStart(b)) - (getEventEnd(a) - getEventStart(a));
 };
 
-export const getEventsForDay = (events, day) => {
-  const dayStart = startOfDay(day);
-  const dayEnd = addDays(dayStart, 1);
-  return events.filter(e => overlapsRange(e, dayStart, dayEnd)).sort(sortEvents);
+// Order inside one day: all-day row first, then by the start *on that day* (an event that began
+// last night sorts at midnight, not above everything), then longer first.
+const compareDayEntries = (a, b) =>
+  (a.allDayRow === b.allDayRow ? 0 : a.allDayRow ? -1 : 1)
+  || a.clipStart - b.clipStart
+  || (b.end - b.start) - (a.end - a.start);
+
+/**
+ * Events for `dayCount` consecutive days starting at `firstDay`, with dates parsed once.
+ * Returns one array per day of { event, start, end, clipStart, clipEnd, allDayRow,
+ * continuesBefore, continuesAfter }, each sorted like Google. O(events + placements).
+ */
+export const indexEventsByDay = (events, firstDay, dayCount) => {
+  const rangeStart = startOfDay(firstDay);
+  const dayStarts = Array.from({ length: dayCount + 1 }, (_, i) => addDays(rangeStart, i));
+  const rangeEnd = dayStarts[dayCount];
+  const buckets = Array.from({ length: dayCount }, () => []);
+  for (const event of events || []) {
+    const start = getEventStart(event);
+    if (!start) continue;
+    const end = getEventEnd(event);
+    const instant = end.getTime() === start.getTime();
+    if (instant ? start < rangeStart || start >= rangeEnd : start >= rangeEnd || end <= rangeStart) continue;
+    const allDayRow = isAllDayEvent(event) || end - start >= DAY;
+    const first = Math.max(0, differenceInCalendarDays(start, rangeStart));
+    for (let i = first; i < dayCount; i++) {
+      const ds = dayStarts[i];
+      const de = dayStarts[i + 1];
+      if (instant) {
+        if (start >= ds && start < de) buckets[i].push({ event, start, end, clipStart: start, clipEnd: end, allDayRow, continuesBefore: false, continuesAfter: false });
+        break;
+      }
+      if (ds >= end) break;
+      if (start < de && end > ds) {
+        buckets[i].push({
+          event, start, end, allDayRow,
+          clipStart: start < ds ? ds : start,
+          clipEnd: end > de ? de : end,
+          continuesBefore: start < ds,
+          continuesAfter: end > de
+        });
+      }
+    }
+  }
+  buckets.forEach(b => b.sort(compareDayEntries));
+  return buckets;
 };
 
+export const getEventsForDay = (events, day) => indexEventsByDay(events, day, 1)[0].map(entry => entry.event);
+
 // Timed events for one day, clipped to that day (an event from 10 PM to 1 AM shows on both days).
-export const getTimedSegmentsForDay = (events, day) => {
-  const dayStart = startOfDay(day);
-  const dayEnd = addDays(dayStart, 1);
-  return events
-    .filter(e => !isAllDayRowEvent(e) && overlapsRange(e, dayStart, dayEnd))
-    .map(event => {
-      const start = getEventStart(event);
-      const end = getEventEnd(event);
-      return {
-        event,
-        start: start < dayStart ? dayStart : start,
-        end: end > dayEnd ? dayEnd : end,
-        continuesBefore: start < dayStart,
-        continuesAfter: end > dayEnd
-      };
-    });
-};
+export const timedSegments = (entries) => entries
+  .filter(entry => !entry.allDayRow)
+  .map(entry => ({
+    event: entry.event,
+    start: entry.clipStart,
+    end: entry.clipEnd,
+    continuesBefore: entry.continuesBefore,
+    continuesAfter: entry.continuesAfter
+  }));
+
+export const getTimedSegmentsForDay = (events, day) => timedSegments(indexEventsByDay(events, day, 1)[0]);
 
 /**
  * Side-by-side layout for overlapping timed segments.

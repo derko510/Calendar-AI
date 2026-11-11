@@ -110,10 +110,11 @@ test('search: order asc/desc and total reflects pre-limit count', () => {
   assert.deepEqual(ids(r), ['1', '5']);
 });
 
-test('search: limit clamps to 1..25 and defaults to 10', () => {
+test('search: limit clamps to 1..50 and defaults to 10', () => {
   const many = normalizeEvents(Array.from({ length: 40 }, (_, i) =>
     timed(`m${i}`, `E${i}`, new Date(Date.UTC(2026, 11, 1, i)).toISOString())), TZ);
-  assert.equal(searchEvents(many, { limit: 1000 }, ctx).events.length, 25);
+  assert.equal(searchEvents(many, { limit: 1000 }, ctx).events.length, 40);
+  assert.equal(searchEvents(many, { limit: 30 }, ctx).events.length, 30);
   assert.equal(searchEvents(many, { limit: 0 }, ctx).events.length, 10);
   assert.equal(searchEvents(many, { limit: -5 }, ctx).events.length, 1);
   assert.equal(searchEvents(many, { limit: 'abc' }, ctx).events.length, 10);
@@ -139,9 +140,101 @@ test('search: overlap semantics for from/to', () => {
   assert.ok(ids(searchEvents(events, { to: '2026-11-10T11:31' }, ctx)).includes('2'));
 });
 
-test('search: invalid boundaries are ignored', () => {
-  assert.equal(searchEvents(events, { from: 'soon', to: 'later' }, ctx).total, 6);
-  assert.equal(searchEvents(events, { from: 5, to: {} }, ctx).total, 6);
+test('search: unparseable boundaries are a tool error naming the formats (not the whole calendar)', () => {
+  for (const from of ['tomorrow', '11/11/2026', 'soon', 5]) {
+    const r = searchEvents(events, { from }, ctx);
+    assert.equal(r.events, undefined, String(from));
+    assert.match(r.error, /YYYY-MM-DD or YYYY-MM-DDTHH:MM/);
+  }
+  assert.match(searchEvents(events, { to: '2026-11-10T25:00' }, ctx).error, /to "2026-11-10T25:00"/);
+  // empty / null boundaries are simply absent
+  assert.equal(searchEvents(events, { from: '', to: null }, ctx).total, 6);
+});
+
+test('search: H:MM and seconds are accepted in the time part', () => {
+  assert.deepEqual(ids(searchEvents(events, { from: '2026-11-10T9:00', to: '2026-11-10T12:00' }, ctx)), ['2']);
+  assert.deepEqual(ids(searchEvents(events, { from: '2026-11-10T03:00:00', to: '2026-11-10T12:00:00' }, ctx)), ['5', '2']);
+});
+
+test('search: unknown status is an error; all/any mean no filter', () => {
+  assert.match(searchEvents(events, { status: 'future' }, ctx).error, /past, now, upcoming/);
+  assert.equal(searchEvents(events, { status: 'all' }, ctx).total, 6);
+  assert.equal(searchEvents(events, { status: 'ANY' }, ctx).total, 6);
+  assert.equal(searchEvents(events, { status: 'Upcoming' }, ctx).total, 3);
+});
+
+test('search: 0 results under a status filter reports the other statuses', () => {
+  const r = searchEvents(events, { keywords: ['standup'], status: 'upcoming' }, ctx);
+  assert.equal(r.total, 0);
+  assert.deepEqual(r.otherStatuses, { now: 1 });
+  assert.equal(searchEvents(events, { keywords: ['zzz'], status: 'upcoming' }, ctx).otherStatuses, undefined);
+});
+
+test('search: a phrase matches when all its words appear, in any order', () => {
+  const list = normalizeEvents([
+    timed('o', 'Interview with Orbital Labs', '2026-11-10T13:30:00Z'),
+    timed('n', 'Interview Northwind', '2026-11-11T15:00:00Z'),
+    timed('d', 'Dinner with John', '2026-11-12T19:00:00Z')
+  ], TZ);
+  assert.deepEqual(ids(searchEvents(list, { keywords: ['Orbital Labs interview'] }, ctx)), ['o']);
+  assert.deepEqual(ids(searchEvents(list, { keywords: ['dinner w/ john'] }, ctx)), ['d']);
+  assert.deepEqual(ids(searchEvents(list, { keywords: ['Orbital Labs interview', 'northwind'] }, ctx)), ['o', 'n']);
+});
+
+test('search: events matching more distinct keywords rank first', () => {
+  const list = normalizeEvents([
+    ...Array.from({ length: 6 }, (_, i) => timed(`l${i}`, 'CS 170 Lecture', `2026-11-1${i}T11:00:00Z`)),
+    timed('final', 'CS 170 Final Exam', '2026-12-17T08:00:00Z')
+  ], TZ);
+  const r = searchEvents(list, { keywords: ['CS 170', 'final'], limit: 5, status: 'upcoming' }, ctx);
+  assert.equal(r.events[0].id, 'final');
+  assert.equal(r.total, 6); // l0 (Nov 10 11:00 UTC) is already past at NOW
+});
+
+test('search: synonyms of one thing count once, so "last dentist" stays date-ordered', () => {
+  const list = normalizeEvents([
+    timed('sep', 'Dentist cleaning', '2026-09-14T10:00:00Z', null, { location: 'Bright Smile Dental' }),
+    timed('oct', 'Dental checkup', '2026-10-20T15:00:00Z', null, { location: 'Bright Smile Dental' })
+  ], TZ);
+  assert.deepEqual(ids(searchEvents(list, { keywords: ['dentist', 'dental'], status: 'past', order: 'desc' }, ctx)), ['oct', 'sep']);
+});
+
+test('search: code-side synonyms, stems and short-word tokens', () => {
+  const list = normalizeEvents([
+    timed('dr', 'Dr. Patel annual physical', '2026-10-02T09:00:00Z'),
+    timed('drinks', 'Drinks with Sam', '2026-10-03T19:00:00Z'),
+    timed('fl', 'Flight to NYC', '2026-11-20T08:00:00Z', null, { location: 'SFO' }),
+    timed('bd', "Mom's birthday", '2026-11-14T00:00:00Z'),
+    timed('lec', 'CS170 Lecture', '2026-11-12T11:00:00Z'),
+    timed('dent', 'Dental checkup', '2026-10-20T15:00:00Z')
+  ], TZ);
+  const find = k => ids(searchEvents(list, { keywords: k }, ctx)).sort();
+  assert.deepEqual(find(['doctor']), ['dr']); // "dr" is a whole token, so "Drinks" doesn't match
+  assert.deepEqual(find(['new york']), ['fl']);
+  assert.deepEqual(find(['flying']), ['fl']);
+  assert.deepEqual(find(['moms bday']), ['bd']);
+  assert.deepEqual(find(["mom's birthday"]), ['bd']);
+  assert.deepEqual(find(['class']), ['lec']);
+  assert.deepEqual(find(['cs 170']), ['lec']);
+  assert.deepEqual(find(['dentist appointment']), ['dent']);
+  assert.deepEqual(find(['lectures']), ['lec']);
+});
+
+test('search: a zero-length event at midnight belongs to its own day', () => {
+  const list = normalizeEvents([timed('z', 'Reminder', '2026-11-10T00:00:00Z', '2026-11-10T00:00:00Z')], TZ);
+  assert.deepEqual(ids(searchEvents(list, { from: '2026-11-10', to: '2026-11-10' }, ctx)), ['z']);
+  assert.deepEqual(ids(searchEvents(list, { from: '2026-11-09', to: '2026-11-09' }, ctx)), []);
+});
+
+test('formatWhen shows the end date for multi-day events', () => {
+  const trip = normalizeEvent({ id: 't', start: { date: '2026-11-20' }, end: { date: '2026-11-24' } }, LA);
+  assert.equal(formatWhen(trip, LA), 'Fri, Nov 20 – Mon, Nov 23, 2026 (all day)');
+  const newYear = normalizeEvent({ id: 'y', start: { date: '2026-12-30' }, end: { date: '2027-01-02' } }, LA);
+  assert.equal(formatWhen(newYear, LA), 'Wed, Dec 30, 2026 – Fri, Jan 1, 2027 (all day)');
+  const party = normalizeEvent(timed('p', 'Party', '2026-11-14T06:00:00Z', '2026-11-14T09:00:00Z'), LA); // Fri 10 PM → Sat 1 AM
+  assert.match(formatWhen(party, LA), /^Fri, Nov 13, 2026, 10:00\sPM – Sat, Nov 14, 1:00\sAM$/);
+  const single = normalizeEvent(timed('s', 'S', '2026-11-14T18:00:00Z', '2026-11-14T19:00:00Z'), LA);
+  assert.doesNotMatch(formatWhen(single, LA), /Sat.*Sat/);
 });
 
 test('search: window evaluated in the user time zone', () => {

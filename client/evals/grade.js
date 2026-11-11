@@ -1,15 +1,23 @@
-// Pure grader: grade(testCase, result) → { pass, reasons[] }. No I/O, no clock.
+// Pure grader: grade(testCase, result) → { pass, reasons[], answerOk }. No I/O, no clock.
+// answerOk: null when the case has no answerMatches; otherwise whether the answer text matched every regex.
+// For core cases answerOk is reported separately (so core pass rates stay comparable with older runs);
+// for extended cases a failed answer check fails the case.
+
+export const answerRegexes = (testCase) => {
+  const m = testCase.answerMatches;
+  return m === undefined ? [] : Array.isArray(m) ? m : [m];
+};
 
 export function grade(testCase, result) {
   const expect = testCase.expect;
   const reasons = [];
 
   if (!result || typeof result !== 'object') {
-    return { pass: false, reasons: ['no result'] };
+    return { pass: false, reasons: ['no result'], answerOk: answerRegexes(testCase).length ? false : null };
   }
   if (result.intent !== expect.intent) {
     reasons.push(`intent: expected "${expect.intent}", got "${result.intent ?? '(none)'}"`);
-    return { pass: false, reasons };
+    return { pass: false, reasons, answerOk: answerRegexes(testCase).length ? false : null };
   }
 
   if (expect.intent === 'question') {
@@ -45,17 +53,28 @@ export function grade(testCase, result) {
     }
   }
 
-  return { pass: reasons.length === 0, reasons };
+  const regexes = answerRegexes(testCase);
+  let answerOk = null;
+  if (regexes.length) {
+    // No-break spaces / hyphens (gpt-oss writes "10:00" + U+202F + "AM") count as plain ones
+    const text = String(result.answer || '').replace(/[\u00A0\u2007\u202F]/g, ' ').replace(/[\u2010\u2011]/g, '-');
+    const missed = regexes.filter(r => !r.test(text));
+    answerOk = missed.length === 0;
+    if (!answerOk && testCase.suite === 'extended') reasons.push(`answer text does not match ${missed.map(String).join(', ')}`);
+  }
+
+  return { pass: reasons.length === 0, reasons, answerOk };
 }
 
 function createMatches(want, e) {
   if (!e || e.date !== want.date || e.startTime !== want.startTime) return false;
   if (want.endTime && e.endTime !== want.endTime) return false;
+  if (want.endDate && e.endDate !== want.endDate) return false;
   if (want.title && !want.title.test(String(e.title || ''))) return false;
   return true;
 }
 
 export function describeCreate(e) {
   const title = e.title instanceof RegExp ? String(e.title) : JSON.stringify(e.title);
-  return `${e.date} ${e.startTime}${e.endTime ? `–${e.endTime}` : ''} title ${title}`;
+  return `${e.date} ${e.startTime}${e.endTime ? `–${e.endTime}` : ''}${e.endDate ? ` (ends ${e.endDate})` : ''} title ${title}`;
 }

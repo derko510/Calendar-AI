@@ -159,8 +159,15 @@ Desktop.ini
 # Linux
 *~
 
-# Templates with placeholder values only
-!.env.example
+# Local tooling and eval output
+graphify-out/
+.claude/settings.json
+.claude/settings.local.json
+client/evals/results/*
+!client/evals/results/.gitkeep
 
+# Vercel and env files (templates re-allowed last)
 .vercel
 .env*
+!.env.example
+!**/.env.example

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { safeTimeZone, zonedParts, zonedToUtc, addDays, isDateString, isTimeString, describeNow, upcomingDays } from '../src/assistant/time.js';
+import { safeTimeZone, zonedParts, zonedToUtc, addDays, isDateString, isTimeString, describeNow, upcomingDays, normalizeTime, weekdayOf, parseWeekday, dateGuide } from '../src/assistant/time.js';
 
 const LA = 'America/Los_Angeles';
 
@@ -76,4 +76,47 @@ test('upcomingDays labels today/tomorrow with correct weekdays', () => {
 test('upcomingDays starts from the local date, not the UTC date', () => {
   const days = upcomingDays(new Date('2026-11-11T03:00:00Z'), LA);
   assert.equal(days[0], 'Tue 2026-11-10 (today)');
+});
+
+test('isDateString rejects impossible dates (round trip)', () => {
+  assert.equal(isDateString('2026-02-30'), false);
+  assert.equal(isDateString('2026-04-31'), false);
+  assert.equal(isDateString('2026-02-29'), false);
+  assert.equal(isDateString('2028-02-29'), true);
+  assert.equal(isDateString('2026-12-31'), true);
+});
+
+test('normalizeTime', () => {
+  assert.equal(normalizeTime('9:00'), '09:00');
+  assert.equal(normalizeTime('09:00:00'), '09:00');
+  assert.equal(normalizeTime(' 23:59 '), '23:59');
+  assert.equal(normalizeTime('24:00'), null);
+  assert.equal(normalizeTime('9am'), null);
+  assert.equal(normalizeTime(900), null);
+});
+
+test('weekdayOf / parseWeekday', () => {
+  assert.equal(weekdayOf('2026-11-13'), 'Fri');
+  assert.equal(parseWeekday('friday'), 'Fri');
+  assert.equal(parseWeekday('THU.'), 'Thu');
+  assert.equal(parseWeekday('someday'), null);
+});
+
+test('dateGuide: Sunday-start weeks, previous days and named ranges, in the user zone', () => {
+  const g = dateGuide(new Date('2026-11-11T01:27:00Z'), LA); // Tue Nov 10, 5:27 PM in LA
+  assert.match(g.lines[0], /^Last week: Sun 2026-11-01, .* Sat 2026-11-07$/);
+  assert.match(g.lines[1], /Mon 2026-11-09 \(yesterday\), Tue 2026-11-10 \(today\), Wed 2026-11-11 \(tomorrow\)/);
+  assert.deepEqual(g.ranges, {
+    yesterday: '2026-11-09', today: '2026-11-10', tomorrow: '2026-11-11',
+    'this week': '2026-11-08 to 2026-11-14', 'next week': '2026-11-15 to 2026-11-21', 'last week': '2026-11-01 to 2026-11-07',
+    'this weekend': '2026-11-14 to 2026-11-15', 'last weekend': '2026-11-07 to 2026-11-08'
+  });
+  // On a Sunday, "this weekend" is yesterday + today
+  const sun = dateGuide(new Date('2026-11-15T20:00:00Z'), LA).ranges;
+  assert.equal(sun['this weekend'], '2026-11-14 to 2026-11-15');
+  assert.equal(sun['last weekend'], '2026-11-07 to 2026-11-08');
+  // On a Saturday, today + tomorrow
+  assert.equal(dateGuide(new Date('2026-11-14T20:00:00Z'), LA).ranges['this weekend'], '2026-11-14 to 2026-11-15');
+  // Kolkata just after local midnight is already the next day
+  assert.equal(dateGuide(new Date('2026-11-10T23:40:00Z'), 'Asia/Kolkata').ranges.today, '2026-11-11');
 });

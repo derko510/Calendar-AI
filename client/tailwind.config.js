@@ -15,7 +15,7 @@ module.exports = {
         surface: '#FFFFFF',
         line: '#E6E1D7',
         ink: { DEFAULT: '#1D1C1A', soft: '#3A3833' },
-        muted: '#7A746A',
+        muted: '#68625A', // 5.4:1 on paper, 6.0:1 on white (WCAG AA for small text)
         accent: { DEFAULT: '#C4502B', soft: '#F6E3DA' },
       },
     },

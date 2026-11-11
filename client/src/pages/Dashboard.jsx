@@ -1,13 +1,22 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { CalendarDays, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { CalendarDays, MessageCircle, X } from 'lucide-react';
+import { addDays, addMonths, format, startOfMonth } from 'date-fns';
 import GoogleCalendar from '../components/GoogleCalendar';
 import RealCalendarBot from '../components/RealCalendarBot';
 import googleCalendarService from '../services/googleCalendar';
 import demoCalendarService from '../services/demoCalendar';
+import { eventKey, mergeEvents, dedupeAcrossCalendars, isDefaultVisible } from '../utils/calendarData';
+import { withMyResponse } from '../utils/rsvp';
 
 const REFRESH_EVERY_MS = 5 * 60 * 1000;
 const REFRESH_ON_FOCUS_AFTER_MS = 60 * 1000;
-const LOCAL_FIELDS = ['calendarId', 'calendarName', 'isWritable'];
+const REFETCH_AFTER_MUTATION_MS = 1500;
+const WINDOW_MONTHS_BEFORE = 3;
+const WINDOW_MONTHS_AFTER = 3;
+const EXTEND_BUFFER_MONTHS = 1; // load a month beyond what's on screen when the window grows
+const VISIBILITY_KEY = 'calendar.visibility';
+const LOCAL_FIELDS = ['calendarId', 'calendarName', 'calendarColor', 'calendarPrimary', 'isWritable'];
+const RSVP_TOAST = { accepted: 'Accepted', tentative: 'Marked as maybe', declined: 'Declined' };
 
 const isAuthError = (err) => {
   const status = err?.response?.status ?? err?.status;
@@ -15,15 +24,43 @@ const isAuthError = (err) => {
   return status === 401 || /\b401\b|unauthori[sz]ed|invalid_token|not signed in|sign in again/i.test(text);
 };
 
-const errorText = (err) =>
-  err?.response?.data?.error?.message || err?.message || 'Something went wrong.';
+const errorText = (err) => {
+  const msg = err?.message || err?.response?.data?.error?.message || 'Something went wrong.';
+  const status = err?.response?.status ?? err?.status;
+  return status && !msg.includes(String(status)) ? `${msg} (HTTP ${status})` : msg;
+};
+
+const readVisibility = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VISIBILITY_KEY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeVisibility = (value) => {
+  try { localStorage.setItem(VISIBILITY_KEY, JSON.stringify(value)); } catch { /* storage blocked */ }
+};
+
+const initialWindow = () => {
+  const thisMonth = startOfMonth(new Date());
+  return { from: addMonths(thisMonth, -WINDOW_MONTHS_BEFORE), to: addMonths(thisMonth, WINDOW_MONTHS_AFTER + 1) };
+};
+
+const names = (failed) => failed.map(f => f.calendar.summary || f.calendar.id).join(', ');
 
 const Dashboard = ({ userCredential, onSignOut, demo = false }) => {
   const service = demo ? demoCalendarService : googleCalendarService;
-  const [events, setEvents] = useState([]);
+  const [events, setEvents] = useState([]); // every loaded copy, keyed by calendarId + id
+  const [calendars, setCalendars] = useState([]);
+  const [visibility, setVisibility] = useState(readVisibility); // { calendarId: boolean } overrides
+  const [loadWindow, setLoadWindow] = useState(initialWindow); // [from, to) loaded for the shown calendars
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null); // { message, auth }
+  const [rangeLoading, setRangeLoading] = useState(false);
+  const [error, setError] = useState(null); // { message, auth } — blocking problem
+  const [notice, setNotice] = useState(null); // non-blocking: stale data, a calendar that failed
   const [lastUpdated, setLastUpdated] = useState(null);
   const [toast, setToast] = useState(null);
   const [focusRequest, setFocusRequest] = useState(null);
@@ -32,7 +69,23 @@ const Dashboard = ({ userCredential, onSignOut, demo = false }) => {
   const chatInputRef = useRef(null);
   const toastTimer = useRef(null);
   const inFlight = useRef(null);
+  const reloadQueued = useRef(false);
   const lastLoadAt = useRef(0);
+  const windowRef = useRef(loadWindow);
+  const eventsRef = useRef(events);
+  const calendarsRef = useRef(calendars);
+  const visibilityRef = useRef(visibility);
+  const mutationSeq = useRef(0); // bumped when a create/edit/delete starts and when it finishes
+  const refetchTimer = useRef(null);
+  const wantedRange = useRef(null);
+  const extending = useRef(false);
+  const loadedOnce = useRef(false);
+  eventsRef.current = events;
+  calendarsRef.current = calendars;
+  visibilityRef.current = visibility;
+
+  const isShown = useCallback((cal, overrides = visibilityRef.current) =>
+    (Object.hasOwn(overrides, cal.id) ? !!overrides[cal.id] : isDefaultVisible(cal)), []);
 
   const notify = useCallback((message, tone = 'info') => {
     clearTimeout(toastTimer.current);
@@ -46,39 +99,129 @@ const Dashboard = ({ userCredential, onSignOut, demo = false }) => {
     return () => clearInterval(id);
   }, []);
 
+  const setWindow = (next) => {
+    windowRef.current = next;
+    setLoadWindow(next);
+  };
+
+  // ---- Loading ----
+  // Full load / refresh of the whole loaded window for every shown calendar.
+  // A failed refresh never empties the calendar: what's on screen stays, with a notice.
   const loadEvents = useCallback(async ({ silent = false } = {}) => {
-    if (inFlight.current) return inFlight.current;
+    if (inFlight.current) {
+      reloadQueued.current = true;
+      return inFlight.current;
+    }
     const run = (async () => {
+      const seq = mutationSeq.current;
       if (silent) setRefreshing(true);
       try {
         if (userCredential?.accessToken) service.setAccessToken(userCredential.accessToken);
-        const timeMin = new Date();
-        timeMin.setMonth(timeMin.getMonth() - 3);
-        const timeMax = new Date();
-        timeMax.setMonth(timeMax.getMonth() + 3);
-        const list = await service.getAllCalendarEvents(timeMin.toISOString(), timeMax.toISOString(), 2500);
-        setEvents(list);
+        const cals = await service.listCalendars();
+        const shown = cals.filter(c => isShown(c));
+        const { from, to } = windowRef.current;
+        const { events: fetched, failed } = await service.getEventsForCalendars(shown, from.toISOString(), to.toISOString());
+        if (mutationSeq.current !== seq) {
+          // A create/edit/delete happened while this was loading; its result may be missing here. Try again shortly.
+          scheduleRefetch();
+          return;
+        }
+        const failedIds = new Set(failed.map(f => f.calendar.id));
+        setCalendars(cals);
+        setEvents(prev => mergeEvents(prev, fetched, from, to, id => !failedIds.has(id)));
         setError(null);
+        setNotice(failed.length ? `Couldn’t refresh ${names(failed)} — showing saved events.` : null);
+        if (failed.length) console.warn('Some calendars failed to load:', failed);
         setLastUpdated(new Date());
         lastLoadAt.current = Date.now();
+        loadedOnce.current = true;
       } catch (err) {
         console.error('Failed to load calendar events:', err);
-        setError(isAuthError(err)
-          ? { message: 'Your Google session has expired. Sign in again to keep your calendar in sync.', auth: true }
-          : { message: `Couldn’t load your calendar: ${errorText(err)}`, auth: false });
+        if (isAuthError(err)) {
+          setError({ message: 'Your Google session has expired. Sign in again to keep your calendar in sync.', auth: true });
+        } else if (eventsRef.current.length > 0) {
+          setNotice(`Couldn’t refresh — showing saved events. (${errorText(err)})`);
+        } else {
+          setError({ message: `Couldn’t load your calendar: ${errorText(err)}`, auth: false });
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
         inFlight.current = null;
+        if (reloadQueued.current) {
+          reloadQueued.current = false;
+          loadEvents({ silent: true });
+        } else {
+          pumpRange();
+        }
       }
     })();
     inFlight.current = run;
     return run;
-  }, [service, userCredential]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refs and stable helpers
+  }, [service, userCredential, isShown]);
+
+  const scheduleRefetch = useCallback(() => {
+    clearTimeout(refetchTimer.current);
+    refetchTimer.current = setTimeout(() => loadEvents({ silent: true }), REFETCH_AFTER_MUTATION_MS);
+  }, [loadEvents]);
+
+  // Grow the loaded window to cover what's on screen (navigating months ahead or back), one gap at a time
+  async function pumpRange() {
+    const want = wantedRange.current;
+    if (!want || extending.current || inFlight.current || !loadedOnce.current) return;
+    const { from, to } = windowRef.current;
+    let gapFrom;
+    let gapTo;
+    if (want.start < from) {
+      gapFrom = startOfMonth(addMonths(want.start, -EXTEND_BUFFER_MONTHS));
+      gapTo = from;
+    } else if (want.end > to) {
+      gapFrom = to;
+      gapTo = startOfMonth(addMonths(want.end, EXTEND_BUFFER_MONTHS + 1));
+    } else {
+      return;
+    }
+    extending.current = true;
+    setRangeLoading(true);
+    const seq = mutationSeq.current;
+    let retry = false;
+    try {
+      const shown = calendarsRef.current.filter(c => isShown(c));
+      const { events: fetched, failed } = await service.getEventsForCalendars(shown, gapFrom.toISOString(), gapTo.toISOString());
+      if (mutationSeq.current !== seq) {
+        retry = true; // stale: fetch the gap again
+      } else {
+        const failedIds = new Set(failed.map(f => f.calendar.id));
+        setEvents(prev => mergeEvents(prev, fetched, gapFrom, gapTo, id => !failedIds.has(id)));
+        const cur = windowRef.current;
+        setWindow({ from: gapFrom < cur.from ? gapFrom : cur.from, to: gapTo > cur.to ? gapTo : cur.to });
+        if (failed.length) setNotice(`Couldn’t load ${names(failed)} for ${format(gapFrom, 'MMM yyyy')} – ${format(addDays(gapTo, -1), 'MMM yyyy')}.`);
+        retry = true; // the screen may still need more (e.g. both ends)
+      }
+    } catch (err) {
+      console.error('Failed to load more events:', err);
+      if (isAuthError(err)) setError({ message: 'Your Google session has expired. Sign in again to keep your calendar in sync.', auth: true });
+      else setNotice(`Couldn’t load events for ${format(gapFrom, 'MMM yyyy')} – ${format(addDays(gapTo, -1), 'MMM yyyy')}: ${errorText(err)}`);
+      // no retry loop: the next navigation (or Refresh) tries again
+    } finally {
+      extending.current = false;
+      setRangeLoading(false);
+      if (retry) pumpRange();
+    }
+  }
+
+  const onVisibleRangeChange = useCallback((range) => {
+    wantedRange.current = range;
+    pumpRange();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pumpRange only reads refs
+  }, []);
 
   useEffect(() => {
     loadEvents();
   }, [loadEvents]);
+
+  useEffect(() => () => clearTimeout(refetchTimer.current), []);
 
   // Background refresh: every 5 minutes while visible, and when the tab regains focus
   useEffect(() => {
@@ -101,60 +244,114 @@ const Dashboard = ({ userCredential, onSignOut, demo = false }) => {
 
   const refresh = useCallback(() => loadEvents({ silent: true }), [loadEvents]);
 
+  // ---- Calendars shown ----
+  const visibleCalendars = useMemo(
+    () => new Set(calendars.filter(c => (Object.hasOwn(visibility, c.id) ? visibility[c.id] : isDefaultVisible(c))).map(c => c.id)),
+    [calendars, visibility]
+  );
+
+  const toggleCalendar = useCallback((id, show) => {
+    const next = { ...visibilityRef.current, [id]: show };
+    visibilityRef.current = next;
+    setVisibility(next);
+    writeVisibility(next);
+    // Newly shown calendars are loaded for the whole window; hidden ones are dropped at the next load
+    if (show) loadEvents({ silent: true });
+  }, [loadEvents]);
+
+  // What the views and the chat see: shown calendars only, one copy per event
+  const visibleEvents = useMemo(
+    () => dedupeAcrossCalendars(events.filter(e => visibleCalendars.has(e.calendarId || 'primary'))),
+    [events, visibleCalendars]
+  );
+
+  const loadedRange = useMemo(() => ({
+    from: format(loadWindow.from, 'yyyy-MM-dd'),
+    to: format(addDays(loadWindow.to, -1), 'yyyy-MM-dd') // inclusive last loaded day
+  }), [loadWindow]);
+
   // ---- Mutations (used by the calendar and the chat) ----
-  const wrapAuth = (err) => {
-    if (isAuthError(err)) setError({ message: 'Your Google session has expired. Sign in again to keep your calendar in sync.', auth: true });
-    return new Error(isAuthError(err) ? 'Your Google session expired — sign in again.' : errorText(err));
+  // Each bumps the mutation counter before and after, so a load that overlapped it is discarded and redone.
+  const mutate = useCallback(async (fn) => {
+    mutationSeq.current += 1;
+    try {
+      return await fn();
+    } catch (err) {
+      if (isAuthError(err)) setError({ message: 'Your Google session has expired. Sign in again to keep your calendar in sync.', auth: true });
+      throw new Error(isAuthError(err) ? 'Your Google session expired — sign in again.' : errorText(err));
+    } finally {
+      mutationSeq.current += 1; // an overlapping load sees this, discards its result and refetches
+    }
+  }, []);
+
+  const calendarMeta = (calendarId) => {
+    const cal = calendarsRef.current.find(c => c.id === calendarId);
+    return cal
+      ? { calendarId: cal.id, calendarName: cal.summary, calendarColor: cal.backgroundColor, calendarPrimary: cal.primary, isWritable: cal.writable }
+      : { calendarId, isWritable: true };
   };
 
-  const createEvent = useCallback(async (payload, calendarId = 'primary') => {
-    try {
-      const created = await service.createEvent(calendarId, payload);
-      const event = { calendarId, isWritable: true, ...created };
-      setEvents(prev => [...prev.filter(e => e.id !== event.id), event]);
-      return event;
-    } catch (err) {
-      throw wrapAuth(err);
-    }
-  }, [service]);
+  // The chat may hand back an event without its calendar; find the loaded copy
+  const resolveEvent = (event) => {
+    if (event?.calendarId) return event;
+    return eventsRef.current.find(e => e.id === event?.id && e.isWritable !== false)
+      || eventsRef.current.find(e => e.id === event?.id)
+      || event;
+  };
 
-  const updateEvent = useCallback(async (event, changes) => {
+  const createEvent = useCallback((payload, calendarId, options = {}) => mutate(async () => {
+    const target = calendarId && calendarId !== 'primary'
+      ? calendarId
+      : calendarsRef.current.find(c => c.primary)?.id || 'primary';
+    const created = await service.createEvent(target, payload, options);
+    const event = { ...created, ...calendarMeta(target) };
+    setEvents(prev => [...prev.filter(e => eventKey(e) !== eventKey(event)), event]);
+    return event;
+  }), [service, mutate]);
+
+  const updateEvent = useCallback((original, changes, options = {}) => mutate(async () => {
+    const event = resolveEvent(original);
     const calendarId = event.calendarId || 'primary';
-    try {
-      let updated;
-      if (typeof service.patchEvent === 'function') {
-        updated = await service.patchEvent(calendarId, event.id, changes);
-      } else {
-        // PUT replaces the whole event, so send the full resource with the changes applied
-        const body = Object.fromEntries(Object.entries(event).filter(([k]) => !LOCAL_FIELDS.includes(k)));
-        updated = await service.updateEvent(calendarId, event.id, { ...body, ...changes });
-      }
-      const merged = { ...event, ...updated, calendarId, isWritable: event.isWritable, calendarName: event.calendarName };
-      setEvents(prev => prev.map(e => (e.id === event.id ? merged : e)));
-      return merged;
-    } catch (err) {
-      throw wrapAuth(err);
+    let updated;
+    if (typeof service.patchEvent === 'function') {
+      updated = await service.patchEvent(calendarId, event.id, changes, options);
+    } else {
+      // PUT replaces the whole event, so send the full resource with the changes applied
+      const body = Object.fromEntries(Object.entries(event).filter(([k]) => !LOCAL_FIELDS.includes(k)));
+      updated = await service.updateEvent(calendarId, event.id, { ...body, ...changes }, options);
     }
-  }, [service]);
+    const merged = { ...event, ...updated, ...calendarMeta(calendarId), isWritable: event.isWritable };
+    setEvents(prev => prev.map(e => (eventKey(e) === eventKey(event) ? merged : e)));
+    return merged;
+  }), [service, mutate]);
 
-  const deleteEvent = useCallback(async (event) => {
-    try {
-      await service.deleteEvent(event.calendarId || 'primary', event.id);
-      setEvents(prev => prev.filter(e => e.id !== event.id));
-      return event.id;
-    } catch (err) {
-      throw wrapAuth(err);
-    }
-  }, [service]);
+  const deleteEvent = useCallback((original, options = {}) => mutate(async () => {
+    const event = resolveEvent(original);
+    await service.deleteEvent(event.calendarId || 'primary', event.id, options);
+    setEvents(prev => prev.filter(e => eventKey(e) !== eventKey(event)));
+    return event.id;
+  }), [service, mutate]);
+
+  // RSVP: only the signed-in guest's answer changes; the attendees list is sent in full
+  const respondToEvent = useCallback((original, status) => mutate(async () => {
+    const event = resolveEvent(original);
+    const calendarId = event.calendarId || 'primary';
+    const attendees = withMyResponse(event, status);
+    const updated = await service.respondToEvent(calendarId, event.id, attendees);
+    const merged = { ...event, ...updated, ...calendarMeta(calendarId), isWritable: event.isWritable };
+    setEvents(prev => prev.map(e => (eventKey(e) === eventKey(event) ? merged : e)));
+    notify(RSVP_TOAST[status]);
+    return merged;
+  }), [service, mutate, notify]);
 
   const openEventFromChat = useCallback((id) => {
-    if (!events.some(e => e.id === id)) {
+    if (!visibleEvents.some(e => e.id === id)) {
       notify('That event is no longer on your calendar.');
       return;
     }
     setMobilePane('calendar');
     setFocusRequest({ id, nonce: Date.now() });
-  }, [events, notify]);
+  }, [visibleEvents, notify]);
 
   const focusChat = useCallback(() => {
     setMobilePane('chat');
@@ -191,29 +388,48 @@ const Dashboard = ({ userCredential, onSignOut, demo = false }) => {
         </div>
       )}
 
+      {notice && !error && (
+        <div role="status" className="w-full max-w-3xl mx-auto rounded-full border border-line bg-surface pl-4 pr-1 py-1 flex items-center justify-center gap-2 text-sm text-ink-soft">
+          <p className="min-w-0 truncate" title={notice}>{notice}</p>
+          <button type="button" onClick={refresh} disabled={refreshing} className="shrink-0 rounded-full px-2.5 py-0.5 text-sm font-medium text-ink hover:bg-paper disabled:opacity-50">
+            Retry
+          </button>
+          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss" className="shrink-0 p-1.5 rounded-full text-muted hover:text-ink hover:bg-paper">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       <div className="w-full max-w-[120rem] mx-auto flex-1 min-h-0">
         <div className="h-full grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-3 lg:gap-4">
           <section className={paneClass('calendar')} aria-label="Calendar">
             <GoogleCalendar
-              events={events}
+              events={visibleEvents}
               now={now}
               demo={demo}
               onSignOut={handleSignOut}
               onCreate={createEvent}
               onUpdate={updateEvent}
               onDelete={deleteEvent}
+              onRespond={respondToEvent}
               notify={notify}
               focusRequest={focusRequest}
               onFocusChat={focusChat}
               onRefresh={refresh}
               refreshing={refreshing}
               lastUpdated={lastUpdated}
+              calendars={calendars}
+              visibleCalendars={visibleCalendars}
+              onToggleCalendar={toggleCalendar}
+              onVisibleRangeChange={onVisibleRangeChange}
+              rangeLoading={rangeLoading}
             />
           </section>
           <section className={paneClass('chat')} aria-label="Assistant">
             <RealCalendarBot
               demo={demo}
-              events={events}
+              events={visibleEvents}
+              loadedRange={loadedRange}
               inputRef={chatInputRef}
               onCreateEvent={createEvent}
               onDeleteEvent={deleteEvent}

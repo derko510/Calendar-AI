@@ -2,13 +2,13 @@
 // Makes one tiny request to the AI provider. Never prints secret values.
 import 'dotenv/config';
 import { createLLM, llmProvider, activeModel, groqModel, anthropicModel } from '../src/services/llm.js';
+import { ownerEmails, publicAccess, demoChatEnabled } from '../src/auth/requireUser.js';
 
 let failures = 0;
 const ok = (name, detail = '') => console.log(`  ✅ ${name}${detail ? ` — ${detail}` : ''}`);
 const fail = (name, detail) => { failures++; console.log(`  ❌ ${name} — ${detail}`); };
 
-const provider = llmProvider();
-console.log(`\nAI (${{ groq: 'Groq', anthropic: 'Claude', 'groq+anthropic': 'Groq first, Claude when Groq is rate limited' }[provider]})`);
+console.log('\nAI');
 
 // Tests one provider's key with a tiny request, never printing the key
 async function checkKey(keyName, model) {
@@ -24,10 +24,20 @@ async function checkKey(keyName, model) {
 if (!process.env.GROQ_API_KEY && !process.env.ANTHROPIC_API_KEY) {
   fail('AI key', 'set GROQ_API_KEY and/or ANTHROPIC_API_KEY (the chat needs one)');
 } else {
-  if (provider !== 'anthropic') await checkKey('GROQ_API_KEY', groqModel());
-  if (provider !== 'groq') await checkKey('ANTHROPIC_API_KEY', anthropicModel());
-  console.log(`  ℹ️  chat model: ${activeModel()}`);
+  // Groq serves everyone who is not an owner (and backs up Claude); Claude serves OWNER_EMAILS
+  if (process.env.GROQ_API_KEY) await checkKey('GROQ_API_KEY', groqModel());
+  else console.log('  ⚠️  GROQ_API_KEY — not set: visitors and the demo will have no assistant');
+  if (process.env.ANTHROPIC_API_KEY) await checkKey('ANTHROPIC_API_KEY', anthropicModel());
+  else console.log('  ⚠️  ANTHROPIC_API_KEY — not set: owners will use Groq');
+  console.log(`  ℹ️  ${llmProvider()}`);
+  console.log(`  ℹ️  models: ${activeModel()}`);
 }
+
+console.log('\nWho gets which AI');
+ownerEmails().length
+  ? ok('OWNER_EMAILS', `${ownerEmails().length} owner account(s) get Claude`)
+  : console.log('  ⚠️  OWNER_EMAILS — not set: nobody is an owner, so everyone (including you) gets Groq');
+console.log(`  ℹ️  public access ${publicAccess() ? 'on' : 'off'} · demo chat ${demoChatEnabled() ? 'on' : 'off'}`);
 
 console.log('\nGoogle sign-in');
 const isPlaceholder = v => /^your_|^replace_with/.test(v || '');

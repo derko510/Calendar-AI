@@ -75,7 +75,13 @@ export const buildEventPayload = (values) => {
   };
 };
 
-/** Only the fields that changed, for an update. */
+// PATCH merges nested objects, so switching all-day <-> timed must clear the other form explicitly;
+// otherwise Google ends up with both `date` and `dateTime` set and rejects the update (400).
+const clearOtherForm = (time) => (time.date
+  ? { date: time.date, dateTime: null, timeZone: null }
+  : { dateTime: time.dateTime, timeZone: time.timeZone, date: null });
+
+/** Only the fields that changed, for an update (PATCH). */
 export const buildEventChanges = (event, values) => {
   const times = buildTimes(values);
   if (times.error) return times;
@@ -86,8 +92,8 @@ export const buildEventChanges = (event, values) => {
   if (values.description.trim() !== original.description.trim()) changes.description = values.description.trim();
   const timeKeys = ['startDate', 'startTime', 'endDate', 'endTime', 'allDay'];
   if (timeKeys.some(k => values[k] !== original[k])) {
-    changes.start = times.start;
-    changes.end = times.end;
+    changes.start = clearOtherForm(times.start);
+    changes.end = clearOtherForm(times.end);
   }
   return { changes };
 };

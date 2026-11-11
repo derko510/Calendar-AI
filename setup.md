@@ -16,7 +16,8 @@ cp .env.example .env
 - `GOOGLE_CLIENT_SECRET`: the Client secret of that same OAuth client (server only)
 - `SESSION_SECRET`: 32+ random characters that encrypt the sign-in cookie. Generate one:
   `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`
-- `GROQ_API_KEY`: from [console.groq.com/keys](https://console.groq.com/keys)
+- `GROQ_API_KEY` (free, default model `openai/gpt-oss-120b`) from [console.groq.com/keys](https://console.groq.com/keys) and/or `ANTHROPIC_API_KEY` (Claude Haiku 5.5). At least one is required.
+- `OWNER_EMAILS`: your Google email(s). Owners get Claude (Groq as backup); every other signed-in account and the demo get Groq's free tier only, rate limited (`PUBLIC_CHAT_LIMIT`, default 20 per 10 minutes). `PUBLIC_ACCESS=false` = owners only.
 
 Then run `npm run check-env` to test them.
 
@@ -54,12 +55,13 @@ npm run dev
 
 ```bash
 npm test          # unit tests, no network
-npm run eval      # accuracy evals against Groq (needs GROQ_API_KEY)
+npm run eval      # accuracy evals on the configured provider (needs GROQ_API_KEY or ANTHROPIC_API_KEY)
+node evals/run.js --model claude-haiku-5-5   # or a Groq model id, e.g. --model openai/gpt-oss-120b
 ```
 
 ## Common issues
 
-- **Chat shows an AI error**: run `npm run check-env`; it prints Groq's reason
+- **Chat shows an AI error**: run `npm run check-env`; it prints the provider's reason
 - **Google sign-in failed**: check `VITE_GOOGLE_CLIENT_ID` and that `http://localhost:5173` is an authorized origin
 - **"Sign-in is not set up on the server"**: set `GOOGLE_CLIENT_SECRET` and `SESSION_SECRET` (32+ chars) in `client/.env` and restart `npm run dev:api`
 - **Signed out after a week**: the OAuth consent screen is still in Testing; publish it (see above)

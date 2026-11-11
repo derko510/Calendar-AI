@@ -172,8 +172,9 @@ test('POST /google exchanges the code and sets an encrypted httpOnly cookie', as
   assert.equal(stored.sub, '42');
 });
 
-test('POST /google refuses accounts outside ALLOWED_EMAILS and sets no cookie', async () => {
-  process.env.ALLOWED_EMAILS = 'someone-else@example.com';
+test('POST /google with PUBLIC_ACCESS=false refuses non-owner accounts and sets no cookie', async () => {
+  process.env.OWNER_EMAILS = 'someone-else@example.com';
+  process.env.PUBLIC_ACCESS = 'false';
   try {
     tokenReply = () => json(200, { access_token: 'at-1', expires_in: 3599, refresh_token: 'rt-1', id_token: GOOD_ID_TOKEN, scope: 'x' });
     const res = await call('/google', { body: { code: 'auth-code' } });
@@ -181,7 +182,20 @@ test('POST /google refuses accounts outside ALLOWED_EMAILS and sets no cookie', 
     assert.equal(res.body.error, 'not_allowed');
     assert.ok(!res.setCookie, 'no session cookie for a blocked account');
   } finally {
-    delete process.env.ALLOWED_EMAILS;
+    delete process.env.OWNER_EMAILS;
+    delete process.env.PUBLIC_ACCESS;
+  }
+});
+
+test('POST /google lets a non-owner sign in when the public tier is on (the default)', async () => {
+  process.env.OWNER_EMAILS = 'someone-else@example.com';
+  try {
+    tokenReply = () => json(200, { access_token: 'at-1', expires_in: 3599, refresh_token: 'rt-1', id_token: GOOD_ID_TOKEN, scope: 'x' });
+    const res = await call('/google', { body: { code: 'auth-code' } });
+    assert.equal(res.status, 200);
+    assert.ok(res.setCookie);
+  } finally {
+    delete process.env.OWNER_EMAILS;
   }
 });
 

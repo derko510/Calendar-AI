@@ -53,12 +53,39 @@ export function addDays(dateStr, days) {
   return t.toISOString().slice(0, 10);
 }
 
+// A real calendar date: "2026-02-30" has the right shape but is rejected (round-trip check)
 export function isDateString(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
 }
 
 export function isTimeString(value) {
   return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+// "9:00", "09:00", "09:00:00" → "09:00"; anything else → null
+export function normalizeTime(value) {
+  if (typeof value !== 'string') return null;
+  const m = value.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/);
+  if (!m) return null;
+  const time = `${m[1].padStart(2, '0')}:${m[2]}`;
+  return isTimeString(time) ? time : null;
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// "2026-11-13" → "Fri"
+export function weekdayOf(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
+// "Fri", "friday", "FRI." → "Fri"; unknown → null
+export function parseWeekday(value) {
+  const key = String(value || '').trim().slice(0, 3).toLowerCase();
+  return WEEKDAYS.find(w => w.toLowerCase() === key) || null;
 }
 
 // "Tuesday, 2026-11-10, 5:27 PM"
@@ -76,4 +103,40 @@ export function upcomingDays(now, timeZone, count = 14) {
     const weekday = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short' });
     return `${weekday} ${day}${i === 0 ? ' (today)' : i === 1 ? ' (tomorrow)' : ''}`;
   });
+}
+
+// The date guide for the system prompt: four Sunday-start weeks (last, this, next, the one after) with every
+// date spelled out, plus precomputed ranges, so the model never does calendar arithmetic itself.
+export function dateGuide(now, timeZone) {
+  const today = zonedParts(now, timeZone).date;
+  const dow = WEEKDAYS.indexOf(weekdayOf(today));
+  const sunday = addDays(today, -dow);
+  const label = { [addDays(today, -1)]: ' (yesterday)', [today]: ' (today)', [addDays(today, 1)]: ' (tomorrow)' };
+  const week = (offset) => Array.from({ length: 7 }, (_, i) => {
+    const day = addDays(sunday, offset * 7 + i);
+    return `${WEEKDAYS[i]} ${day}${label[day] || ''}`;
+  }).join(', ');
+  // On a Sunday "this weekend" is yesterday + today; otherwise the coming Saturday + Sunday
+  const weekendStart = dow === 0 ? addDays(today, -1) : addDays(sunday, 6);
+  const span = (from, to) => `${from} to ${to}`;
+  const ranges = {
+    yesterday: addDays(today, -1),
+    today,
+    tomorrow: addDays(today, 1),
+    'this week': span(sunday, addDays(sunday, 6)),
+    'next week': span(addDays(sunday, 7), addDays(sunday, 13)),
+    'last week': span(addDays(sunday, -7), addDays(sunday, -1)),
+    'this weekend': span(weekendStart, addDays(weekendStart, 1)),
+    'last weekend': span(addDays(weekendStart, -7), addDays(weekendStart, -6))
+  };
+  return {
+    ranges,
+    lines: [
+      `Last week: ${week(-1)}`,
+      `This week: ${week(0)}`,
+      `Next week: ${week(1)}`,
+      `Week after: ${week(2)}`,
+      `Ranges: ${Object.entries(ranges).filter(([k]) => k !== 'today' && k !== 'tomorrow').map(([k, v]) => `${k} ${v}`).join('; ')}.`
+    ]
+  };
 }

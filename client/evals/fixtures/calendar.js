@@ -58,7 +58,7 @@ const personal = [
   ev('dinner-john-nov', 'Dinner with John', '2026-11-17', '19:00', '20:30'),
   ev('acme-confirmation', 'Acme Corp: Confirmation', '2026-11-09', '14:00', '15:00'),
   ev('hi', 'Hi', '2026-11-10', '16:00', '17:00'),
-  ev('long-horizon-talk', 'Robotics seminar', '2026-11-12', '16:00', '18:00'),
+  ev('robotics-seminar', 'Robotics seminar', '2026-11-12', '16:00', '18:00'),
   ev('study-session', 'Study session', '2026-11-10', '17:00', '18:30'),
   ev('tentative', 'Tentative', '2026-11-13', '09:00', '09:30'),
   ev('patel-followup', 'Dr. Patel follow-up', '2026-12-03', '09:30', '10:00'),

@@ -127,7 +127,7 @@ router.post('/google', requireConfig, async (req, res, next) => {
       return res.status(502).json({ error: 'profile_unavailable' });
     }
 
-    // ALLOWED_EMAILS: accounts outside the list never get a session cookie
+    // With PUBLIC_ACCESS=false only OWNER_EMAILS may sign in; otherwise anyone can (non-owners get the free Groq tier)
     if (!isEmailAllowed(profile.email)) {
       return res.status(403).json({ error: 'not_allowed' });
     }

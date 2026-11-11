@@ -1,18 +1,51 @@
 // LLM clients for the assistant, all behind one interface:
-//   { provider, model, usage, generate(prompt, opts), chat(messages, { tools }) }
+//   { provider, model, usage, answerMode, generate(prompt, opts), chat(messages, { tools, toolChoice, maxTokens }), switchToBackup() }
 // chat() takes and returns OpenAI-style messages (role / content / tool_calls), so agent.js doesn't care which provider runs.
-//   Groq:   OpenAI-compatible REST, GROQ_MODEL (default openai/gpt-oss-20b). Free tier, so it goes first.
-//   Claude: official Anthropic SDK, always claude-haiku-5-5 (the cheapest Claude model; not configurable). Paid, so it is the backup.
-// With both keys set, every request starts on Groq and switches to Claude only when Groq is rate limited.
-// LLM_PROVIDER=groq|anthropic forces a single provider.
+//   Groq:   OpenAI-compatible REST. Free tier; rate limits are per model, so the public tier chains several models.
+//   Claude: official Anthropic SDK, always claude-haiku-5-5 (the cheapest Claude model; not configurable). Paid.
+//
+// Tiers (createLLM({ tier })):
+//   owner  — Claude first; on rate limit / 5xx / timeout / network error the rest of the request runs on Groq.
+//            LLM_PROVIDER=anthropic|groq forces one provider. With only one key, that one is used.
+//   public — Groq only, GROQ_MODELS in order (next model on rate limit / 5xx / timeout). Never Claude.
+//   none   — an explicit `model` picks exactly that provider (evals, check-env); otherwise like owner.
+//
+// Every request has a time budget (default 24 s, Vercel stops the function at 30 s). Each call gets a timeout
+// sized to what is left, and running out surfaces as a clean { code: 'timeout' } error instead of a hang.
 import Anthropic from '@anthropic-ai/sdk';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-// llama-3.1-8b-instant stopped being served to free accounts (404), so the default is gpt-oss-20b
-export const groqModel = () => process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
-// gpt-oss models reason before answering; keep that short
-const isReasoningModel = model => /gpt-oss/.test(model);
+export const WEB_BUDGET_MS = 24000; // whole request
+const WEB_CALL_MS = 15000; // one model call, so a hung primary still leaves time for the backup
+const MIN_CALL_MS = 1500; // less than this left: don't start another call
+
+// Public-tier order, picked from eval results (see evals/README.md): accuracy first, then latency.
+export const GROQ_DEFAULT_MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
+
+// GROQ_MODELS="a,b,c" sets the whole chain; GROQ_MODEL (older setting) puts one model first
+export function groqModels() {
+  const list = (process.env.GROQ_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (list.length) return [...new Set(list)];
+  const first = (process.env.GROQ_MODEL || '').trim();
+  return first ? [first, ...GROQ_DEFAULT_MODELS.filter(m => m !== first)] : [...GROQ_DEFAULT_MODELS];
+}
+export const groqModel = () => groqModels()[0];
+
+// Models that think before answering. Their thinking must never become the answer.
+export const isReasoningModel = model => /gpt-oss|qwen|deepseek|\br1\b|reason|think|magistral/i.test(model);
+// Per-family request settings that keep the thinking short
+function reasoningParams(model) {
+  if (/gpt-oss/i.test(model)) return { reasoning_effort: 'low' };
+  if (/qwen/i.test(model)) return { reasoning_effort: 'none', reasoning_format: 'hidden' };
+  return {};
+}
+
+// <think>…</think> (and an unterminated <think> at the start) is reasoning, not answer text
+export function stripThinking(text) {
+  if (typeof text !== 'string') return text;
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^\s*<think>[\s\S]*$/i, '').trim();
+}
 
 // Pasted env values often carry a trailing newline, spaces or quotes, which Groq rejects as an invalid key
 export const groqKey = () => {
@@ -29,6 +62,8 @@ export const groqKeyFingerprint = () => {
   const key = groqKey();
   return { start: key.slice(0, 8), end: key.slice(-4), length: key.length, hadExtraCharacters: raw !== key };
 };
+
+const hasClaudeKey = () => Boolean((process.env.ANTHROPIC_API_KEY || '').trim());
 
 // Groq returns {"error":{"message":"..."}}; fall back to the raw body
 async function errorText(response) {
@@ -48,48 +83,87 @@ function retryDelayMs(response, attempt) {
   return Number.isFinite(header) && header > 0 ? header * 1000 + 250 : 1000 * 2 ** attempt;
 }
 
+// ---------- shared error shapes ----------
+export const timeoutError = (provider) => Object.assign(new Error('The AI took too long to answer. Please try again.'), { code: 'timeout', provider });
+const rateLimited = (provider, providerMessage) => Object.assign(new Error('rate_limited'), { status: 429, provider, ...(providerMessage && { providerMessage }) });
+const truncated = (provider) => Object.assign(new Error('The AI reply was cut off.'), { code: 'output_truncated', provider });
+
+// One deadline shared by every call (and every provider) in a request. Infinity = no budget (evals).
+export function createBudget(budgetMs = WEB_BUDGET_MS, callMs = WEB_CALL_MS) {
+  const deadline = Number.isFinite(budgetMs) ? Date.now() + budgetMs : Infinity;
+  return {
+    remaining: () => deadline - Date.now(),
+    // Timeout for the next call, or throws when there is no time left
+    callTimeout(provider) {
+      const left = deadline - Date.now();
+      if (left < MIN_CALL_MS) throw timeoutError(provider);
+      return Math.min(callMs, left);
+    }
+  };
+}
+
+const newUsage = () => ({ calls: 0, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0, retries: 0, retryWaitMs: 0, modelMs: 0 });
+
 /**
- * One Groq client with usage tracking.
- * maxRetries / maxWaitMs: the web route keeps these small (a user is waiting, Vercel stops at 30 s);
- * the eval runner raises them so a rate limit slows the run instead of failing cases.
+ * One Groq model with usage tracking.
+ * maxRetries / maxWaitMs: how long to sit out a 429 on the same model. The web path keeps these small
+ * (a user is waiting, and the next model in the chain has its own limit); evals raise them.
  */
-export function createGroqLLM({ model = groqModel(), maxRetries = 1, maxWaitMs = 4000 } = {}) {
-  const usage = { calls: 0, promptTokens: 0, completionTokens: 0 };
+export function createGroqLLM({ model = groqModel(), maxRetries = 1, maxWaitMs = 4000, budget = createBudget(Infinity, 60000), fetchImpl } = {}) {
+  const usage = newUsage();
+  const doFetch = fetchImpl || ((...a) => fetch(...a));
 
   async function request(body) {
-    if (!groqKey()) throw new Error('GROQ_API_KEY is not set on the server');
+    if (!groqKey()) throw Object.assign(new Error('GROQ_API_KEY is not set on the server'), { code: 'not_configured', provider: 'groq' });
     for (let attempt = 0; ; attempt++) {
-      const response = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${groqKey()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          ...body,
-          ...(isReasoningModel(model) && { reasoning_effort: 'low', max_tokens: (body.max_tokens || 600) + 1000 })
-        }),
-      });
-      // 429 = rate limited; 500/502/503 = transient provider trouble. Both are worth one more try.
+      const timeout = budget.callTimeout('groq');
+      const started = Date.now();
+      let response;
+      try {
+        response = await doFetch(GROQ_URL, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${groqKey()}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            ...body,
+            ...(isReasoningModel(model) && { ...reasoningParams(model), max_tokens: (body.max_tokens || 600) + 1000 })
+          }),
+          signal: AbortSignal.timeout(timeout)
+        });
+      } catch (err) {
+        if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw timeoutError('groq');
+        throw Object.assign(new Error(`Could not reach Groq: ${err?.message || err}`), { code: 'network', provider: 'groq' });
+      }
+      // 429 = rate limited; 500/502/503 = transient provider trouble. Both are worth another try if time allows.
       if (response.status === 429 || [500, 502, 503].includes(response.status)) {
         const wait = retryDelayMs(response, attempt);
-        if (attempt < maxRetries && wait <= maxWaitMs) {
+        if (attempt < maxRetries && wait <= maxWaitMs && wait < budget.remaining() - MIN_CALL_MS) {
+          usage.retries += 1;
+          usage.retryWaitMs += wait;
           await sleep(wait);
           continue;
         }
-        if (response.status === 429) throw Object.assign(new Error('rate_limited'), { status: 429 });
+        if (response.status === 429) throw rateLimited('groq', await errorText(response).catch(() => ''));
       }
       if (!response.ok) {
         const text = await errorText(response);
         // Free-tier "request too large for tokens per minute" is a rate limit too, just reported as 413
-        if (response.status === 413 && /rate limit|tokens per minute|TPM/i.test(text)) {
-          throw Object.assign(new Error('rate_limited'), { status: 429, providerMessage: text });
-        }
-        throw Object.assign(new Error(`Groq API error ${response.status}: ${text}`), { status: response.status, providerMessage: text });
+        if (response.status === 413 && /rate limit|tokens per minute|TPM/i.test(text)) throw rateLimited('groq', text);
+        throw Object.assign(new Error(`Groq API error ${response.status}: ${text}`), { status: response.status, provider: 'groq', providerMessage: text });
       }
       const data = await response.json();
+      usage.modelMs += Date.now() - started;
       usage.calls += 1;
       usage.promptTokens += data.usage?.prompt_tokens || 0;
       usage.completionTokens += data.usage?.completion_tokens || 0;
-      return data.choices?.[0]?.message ?? {};
+      usage.servedModel = data.model || model;
+      const choice = data.choices?.[0] || {};
+      const message = { ...(choice.message || {}) };
+      // Reasoning output never becomes the answer: drop the separate field and any inline <think> block
+      delete message.reasoning;
+      if (typeof message.content === 'string') message.content = stripThinking(message.content) || null;
+      if (choice.finish_reason === 'length' && !message.tool_calls?.length) throw truncated('groq');
+      return message;
     }
   }
 
@@ -97,6 +171,7 @@ export function createGroqLLM({ model = groqModel(), maxRetries = 1, maxWaitMs =
     provider: 'groq',
     model,
     usage,
+    answerMode: 'text',
     // Single prompt in, text out. json: true forces one valid JSON object.
     async generate(prompt, { temperature = 0.3, maxTokens = 500, json = false } = {}) {
       const message = await request({
@@ -108,15 +183,24 @@ export function createGroqLLM({ model = groqModel(), maxRetries = 1, maxWaitMs =
       return message.content ?? '';
     },
     // Chat with tools (OpenAI-compatible). Returns the assistant message, including any tool_calls.
-    async chat(messages, { tools, toolChoice = 'auto', temperature = 0, maxTokens = 600 } = {}) {
+    async chat(messages, { tools, toolChoice = 'auto', temperature = 0, maxTokens = 800 } = {}) {
       return request({
-        messages,
+        messages: messages.map(toGroqMessage),
         temperature,
         max_tokens: maxTokens,
         ...(tools && { tools, tool_choice: toolChoice, parallel_tool_calls: false }),
       });
     },
+    switchToBackup: () => false
   };
+}
+
+// Groq rejects unknown message fields; _anthropicContent is ours
+function toGroqMessage(m) {
+  if (!('_anthropicContent' in m)) return m;
+  const rest = { ...m };
+  delete rest._anthropicContent;
+  return rest;
 }
 
 // ---------- Claude ----------
@@ -127,50 +211,97 @@ export const anthropicModel = () => CLAUDE_MODEL;
 // low = least thinking, fewest tokens. The evals decide whether a higher level is worth it.
 export const anthropicEffort = () => process.env.ANTHROPIC_EFFORT || 'low';
 
-// 'groq+anthropic' = Groq first, Claude when Groq is rate limited (both keys set)
-export function llmProvider() {
+const forcedProvider = () => {
   const forced = (process.env.LLM_PROVIDER || '').trim().toLowerCase();
-  if (forced === 'anthropic' || forced === 'groq') return forced;
-  const hasGroq = Boolean(groqKey());
-  const hasClaude = Boolean(process.env.ANTHROPIC_API_KEY);
-  if (hasGroq && hasClaude) return 'groq+anthropic';
-  return hasClaude ? 'anthropic' : 'groq';
+  return forced === 'anthropic' || forced === 'groq' ? forced : null;
+};
+
+// Owner tier: the providers in order, from the keys present and LLM_PROVIDER
+function ownerChain() {
+  const forced = forcedProvider();
+  if (forced) return [forced];
+  const chain = [];
+  if (hasClaudeKey()) chain.push('anthropic');
+  if (groqKey()) chain.push('groq');
+  return chain.length ? chain : ['groq'];
+}
+
+// A label for /api/health and check-env, e.g. "owner: anthropic→groq · public: groq"
+export function llmProvider() {
+  return `owner: ${ownerChain().join('→')} · public: ${groqKey() ? 'groq' : 'unavailable'}`;
 }
 
 export function activeModel() {
-  const provider = llmProvider();
-  if (provider === 'anthropic') return anthropicModel();
-  if (provider === 'groq') return groqModel();
-  return `${groqModel()} → ${anthropicModel()}`;
+  const groq = groqModels().join('→');
+  const owner = ownerChain().map(p => (p === 'anthropic' ? anthropicModel() : groq)).join('→');
+  return `owner: ${owner} · public: ${groqKey() ? groq : 'unavailable'}`;
 }
 
-// options.model picks one provider explicitly (the eval runner's --model): claude-* → Claude, anything else → Groq
-export function createLLM(options = {}) {
-  if (options.model) {
-    return options.model.startsWith('claude') ? createAnthropicLLM(options) : createGroqLLM(options);
-  }
-  const provider = llmProvider();
-  if (provider === 'anthropic') return createAnthropicLLM(options);
-  if (provider === 'groq') return createGroqLLM(options);
-  // A user is waiting: don't sit out Groq's rate limit, hand the request to Claude right away
-  return createFallbackLLM(createGroqLLM({ ...options, maxRetries: 0 }), createAnthropicLLM(options));
+// The Groq models of one tier, each next one taking over on rate limit / 5xx / timeout
+function groqChain(options, budget) {
+  const models = groqModels();
+  const llms = models.map((model, i) => createGroqLLM({
+    ...options,
+    model,
+    budget,
+    // The next model has its own limit, so don't sit out a 429 unless this is the last model
+    maxRetries: i < models.length - 1 ? 0 : (options.maxRetries ?? 1)
+  }));
+  return llms.reduceRight((backup, primary) => (backup ? createFallbackLLM(primary, backup, { manualSwitch: false }) : primary), null);
 }
 
 /**
- * Tries `primary`; when it reports a rate limit, switches to `backup` for the rest of this request
- * (one chat message = one LLM object), so an agent loop never bounces between providers mid-conversation.
- * Any other primary error (bad key, bad request) is surfaced, not hidden behind the backup.
+ * options.tier: 'owner' | 'public' (see the top of this file)
+ * options.model: one specific model (evals, check-env); claude-* → Claude, anything else → Groq
+ * options.budgetMs / callMs: time budget (default 24 s / 15 s per call); evals pass Infinity
  */
-export function createFallbackLLM(primary, backup) {
+export function createLLM(options = {}) {
+  const { tier, model, budgetMs, callMs, ...rest } = options;
+  const budget = createBudget(budgetMs ?? (model && !tier ? Infinity : WEB_BUDGET_MS), callMs ?? (model && !tier ? 60000 : WEB_CALL_MS));
+  if (model && !tier) {
+    return model.startsWith('claude') ? createAnthropicLLM({ ...rest, model, budget }) : createGroqLLM({ ...rest, model, budget });
+  }
+  if (tier === 'public') {
+    if (!groqKey()) throw Object.assign(new Error('The assistant is unavailable right now.'), { code: 'assistant_unavailable' });
+    return groqChain(rest, budget);
+  }
+  // owner, or no tier
+  const make = p => (p === 'anthropic' ? createAnthropicLLM({ maxRetries: 1, ...rest, budget }) : groqChain(rest, budget));
+  const [first, ...others] = ownerChain();
+  return others.length ? createFallbackLLM(make(first), make(others[0]), { manualSwitch: false }) : make(first);
+}
+
+// Rate limit, provider 5xx, timeout, network trouble: worth handing to the backup. Never 400/401/403
+// (a bad request or a bad key must stay visible, not be hidden behind another provider).
+export function isSwitchableError(err) {
+  if (!err) return false;
+  if (err.message === 'rate_limited' || err.status === 429) return true;
+  if (err.code === 'timeout' || err.code === 'network') return true;
+  return Number(err.status) >= 500;
+}
+
+/**
+ * Tries `primary`; when it fails with a switchable error, switches to `backup` for the rest of this request
+ * (one chat message = one LLM object), so an agent loop never bounces between providers mid-conversation.
+ * switchToBackup(): lets the agent move on after repeated malformed tool calls; only when manualSwitch is
+ * true (a backup that is weaker than the primary is not worth switching to for that).
+ */
+export function createFallbackLLM(primary, backup, { manualSwitch = true } = {}) {
   let active = primary;
-  const switchOnRateLimit = method => async (...args) => {
+  const toBackup = (reason) => {
+    if (active === backup) return false;
+    active = backup;
+    console.log(JSON.stringify({ llm: 'fallback', from: `${primary.provider}:${primary.model}`, to: `${backup.provider}:${backup.model}`, reason }));
+    return true;
+  };
+  const call = method => async (...args) => {
     if (active === primary) {
       try {
         return await primary[method](...args);
       } catch (err) {
-        if (err.message !== 'rate_limited') throw err;
-        active = backup;
-        console.log(JSON.stringify({ llm: 'fallback', from: primary.provider, to: backup.provider }));
+        // A nested chain may have switched internally; only move on when it has nothing left
+        if (!isSwitchableError(err)) throw err;
+        toBackup(err.code || err.status || err.message);
       }
     }
     return backup[method](...args);
@@ -178,17 +309,24 @@ export function createFallbackLLM(primary, backup) {
   return {
     provider: `${primary.provider}+${backup.provider}`,
     get model() { return active.model; },
-    get fellBack() { return active === backup; },
+    get answerMode() { return active.answerMode; },
+    get fellBack() { return active === backup || Boolean(active.fellBack); },
+    get servedBy() { return active.servedBy || `${active.provider}:${active.usage.servedModel || active.model}`; },
     get usage() {
       const sum = key => (primary.usage[key] || 0) + (backup.usage[key] || 0);
       return {
         calls: sum('calls'), promptTokens: sum('promptTokens'), completionTokens: sum('completionTokens'),
-        cacheReadTokens: sum('cacheReadTokens'), fellBack: active === backup,
+        cacheReadTokens: sum('cacheReadTokens'), retries: sum('retries'), retryWaitMs: sum('retryWaitMs'), modelMs: sum('modelMs'),
+        fellBack: active === backup || Boolean(active.fellBack),
         servedModel: active.usage.servedModel || active.model
       };
     },
-    generate: switchOnRateLimit('generate'),
-    chat: switchOnRateLimit('chat')
+    switchToBackup() {
+      if (active === primary) return manualSwitch ? toBackup('malformed tool calls') : Boolean(primary.switchToBackup?.());
+      return Boolean(backup.switchToBackup?.());
+    },
+    generate: call('generate'),
+    chat: call('chat')
   };
 }
 
@@ -196,71 +334,94 @@ function toAnthropicTools(tools = []) {
   return tools.map(t => ({ name: t.function.name, description: t.function.description, input_schema: t.function.parameters }));
 }
 
+// Anthropic tool ids must match ^[a-zA-Z0-9_-]+$; Groq's usually do, but don't count on it
+const toolId = id => String(id || 'tool').replace(/[^a-zA-Z0-9_-]/g, '_');
+
 // OpenAI-style history → Anthropic { system, messages }.
 // Assistant turns carry the exact Claude content (_anthropicContent) so thinking blocks go back unchanged, as the API requires.
-function toAnthropicMessages(messages) {
+// Turns from another provider (a Groq step before a mid-request fallback) are rebuilt from content + tool_calls.
+// Consecutive turns with the same role are merged (tool results and a follow-up note are one user turn).
+export function toAnthropicMessages(messages) {
   const system = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
   const out = [];
+  const push = (role, blocks) => {
+    if (blocks.length === 0) return;
+    const last = out.at(-1);
+    if (last?.role === role) last.content.push(...blocks);
+    else out.push({ role, content: blocks });
+  };
   for (const m of messages) {
     if (m.role === 'system') continue;
     if (m.role === 'assistant') {
       if (m._anthropicContent) {
-        out.push({ role: 'assistant', content: m._anthropicContent });
+        push('assistant', [...m._anthropicContent]);
       } else {
         const blocks = [];
-        if (m.content) blocks.push({ type: 'text', text: m.content });
+        if (m.content) blocks.push({ type: 'text', text: String(m.content) });
         for (const c of m.tool_calls || []) {
-          blocks.push({ type: 'tool_use', id: c.id, name: c.function.name, input: safeParse(c.function.arguments) });
+          blocks.push({ type: 'tool_use', id: toolId(c.id), name: c.function.name, input: safeParse(c.function.arguments) });
         }
-        out.push({ role: 'assistant', content: blocks });
+        push('assistant', blocks);
       }
     } else if (m.role === 'tool') {
-      out.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: String(m.content) }] });
-    } else {
-      out.push({ role: 'user', content: String(m.content) });
+      push('user', [{ type: 'tool_result', tool_use_id: toolId(m.tool_call_id), content: String(m.content) }]);
+    } else if (m.content) {
+      push('user', [{ type: 'text', text: String(m.content) }]);
     }
   }
-  return { system, messages: out };
+  // Single plain user text stays a string (the common, cache-friendly shape)
+  return { system, messages: out.map(m => (m.role === 'user' && m.content.length === 1 && m.content[0].type === 'text' ? { role: 'user', content: m.content[0].text } : m)) };
 }
 
 function safeParse(text) {
   try {
-    return JSON.parse(text || '{}');
+    const v = JSON.parse(text || '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
   } catch {
     return {};
   }
 }
 
-// Typed SDK errors → the two signals the rest of the app understands
+// Typed SDK errors → the signals the rest of the app understands
 function mapAnthropicError(err) {
-  if (err instanceof Anthropic.RateLimitError) return Object.assign(new Error('rate_limited'), { status: 429 });
+  if (err instanceof Anthropic.RateLimitError) return rateLimited('anthropic');
+  if (err instanceof Anthropic.APIConnectionTimeoutError || err instanceof Anthropic.APIUserAbortError || err?.name === 'TimeoutError' || err?.name === 'AbortError') return timeoutError('anthropic');
+  if (err instanceof Anthropic.APIConnectionError) return Object.assign(new Error(`Could not reach Claude: ${err.message}`), { code: 'network', provider: 'anthropic' });
   if (err instanceof Anthropic.APIError) {
-    return Object.assign(new Error(`Claude API error ${err.status ?? ''}: ${err.message}`), { status: err.status, providerMessage: err.message });
+    return Object.assign(new Error(`Claude API error ${err.status ?? ''}: ${err.message}`), { status: err.status, provider: 'anthropic', providerMessage: err.message });
   }
   return err;
 }
 
 // fetchImpl / apiKey exist for tests (a fake HTTP layer); the app leaves them unset
-export function createAnthropicLLM({ model = anthropicModel(), maxRetries = 2, timeoutMs = 25000, effort = anthropicEffort(), fetchImpl, apiKey } = {}) {
+export function createAnthropicLLM({ model = anthropicModel(), maxRetries = 2, effort = anthropicEffort(), budget = createBudget(Infinity, 60000), fetchImpl, apiKey } = {}) {
   // The SDK retries 429 / 5xx / connection errors itself, with backoff
   // Keys that aren't scoped to one workspace must name the workspace on every request
   const workspaceId = (process.env.ANTHROPIC_WORKSPACE_ID || '').trim();
-  const client = new Anthropic({
+  let client;
+  // Built on first use, so a tier that never calls Claude never constructs the client
+  const getClient = () => (client ||= new Anthropic({
     maxRetries,
-    timeout: timeoutMs,
     ...(workspaceId && { defaultHeaders: { 'anthropic-workspace-id': workspaceId } }),
     ...(fetchImpl && { fetch: fetchImpl }),
     ...(apiKey && { apiKey })
-  });
-  const usage = { calls: 0, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0 };
+  }));
+  const usage = newUsage();
 
   async function create(params) {
+    const timeout = budget.callTimeout('anthropic');
+    const started = Date.now();
     let response;
     try {
-      response = await client.messages.create({ model, output_config: { effort }, ...params });
+      // timeout bounds one attempt; the signal bounds all attempts together
+      response = await getClient().messages.create(
+        { model, output_config: { effort }, ...params },
+        { timeout, signal: AbortSignal.timeout(Math.max(timeout, Math.min(budget.remaining(), 600000))) }
+      );
     } catch (err) {
       throw mapAnthropicError(err);
     }
+    usage.modelMs += Date.now() - started;
     // The model that actually answered, as reported by the API (not just the one requested)
     usage.servedModel = response.model;
     const u = response.usage || {};
@@ -269,6 +430,7 @@ export function createAnthropicLLM({ model = anthropicModel(), maxRetries = 2, t
     usage.cacheReadTokens += u.cache_read_input_tokens || 0;
     usage.completionTokens += u.output_tokens || 0;
     if (response.stop_reason === 'refusal') throw new Error('Claude declined this request.');
+    if (response.stop_reason === 'max_tokens' && !response.content.some(b => b.type === 'tool_use')) throw truncated('anthropic');
     return response;
   }
 
@@ -278,6 +440,7 @@ export function createAnthropicLLM({ model = anthropicModel(), maxRetries = 2, t
     provider: 'anthropic',
     model,
     usage,
+    answerMode: 'tool',
     async generate(prompt, { maxTokens = 2000, json = false } = {}) {
       const response = await create({
         max_tokens: maxTokens + 2000, // headroom for adaptive thinking
@@ -314,6 +477,7 @@ export function createAnthropicLLM({ model = anthropicModel(), maxRetries = 2, t
         ...(toolCalls.length > 0 && { tool_calls: toolCalls }),
         _anthropicContent: response.content
       };
-    }
+    },
+    switchToBackup: () => false
   };
 }

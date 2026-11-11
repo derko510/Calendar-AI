@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useId, useRef } from 'react';
-import { ChevronLeft, ChevronRight, LogOut, Plus, RefreshCw, Keyboard } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, addDays, addMonths, addWeeks, isSameMonth, isSameDay, isWithinInterval, startOfDay } from 'date-fns';
+import { ChevronLeft, ChevronRight, LogOut, Plus, RefreshCw, Keyboard, Loader2 } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, addMonths, addWeeks, isSameMonth, isSameDay, isWithinInterval, startOfDay } from 'date-fns';
 import MonthView from './MonthView';
 import WeekView from './WeekView';
 import DayView from './DayView';
 import Dialog from './Dialog';
 import EventDetails from './EventDetails';
 import EventForm from './EventForm';
+import CalendarList from './CalendarList';
 import { getEventStart, isAllDayRowEvent } from '../utils/eventUtils';
 import { formValuesFromRange, buildEventPayload, defaultNewRange } from '../utils/eventForm';
 
@@ -42,13 +43,29 @@ const scrollMinutesFor = (date, now) => {
   return isSameDay(day, now) ? now.getHours() * 60 + now.getMinutes() : 8 * 60;
 };
 
+// The days a view shows, as [start, end)
+const visibleRangeFor = (view, date) => {
+  if (view === 'month') {
+    const start = startOfWeek(startOfMonth(date));
+    return { start, end: addDays(startOfDay(endOfWeek(endOfMonth(date))), 1) };
+  }
+  if (view === 'week') {
+    const start = startOfWeek(date);
+    return { start, end: addDays(start, 7) };
+  }
+  const start = startOfDay(date);
+  return { start, end: addDays(start, 1) };
+};
+
 /**
  * Calendar pane: header + Month/Week/Day views + event details / create dialogs + keyboard shortcuts.
- * Data changes go through onCreate(payload) / onUpdate(event, changes) / onDelete(event), all async.
+ * Data changes go through onCreate(payload) / onUpdate(event, changes, options) / onDelete(event, options), all async.
+ * onVisibleRangeChange({ start, end }) reports the days on screen so the parent can load them.
  */
 const GoogleCalendar = ({
-  events = [], now = new Date(), demo = false, onSignOut, onCreate, onUpdate, onDelete, notify,
-  focusRequest, onFocusChat, onRefresh, refreshing = false, lastUpdated
+  events = [], now = new Date(), demo = false, onSignOut, onCreate, onUpdate, onDelete, onRespond, notify,
+  focusRequest, onFocusChat, onRefresh, refreshing = false, lastUpdated,
+  calendars = [], visibleCalendars, onToggleCalendar, onVisibleRangeChange, rangeLoading = false
 }) => {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [view, setViewState] = useState(initialView);
@@ -69,6 +86,14 @@ const GoogleCalendar = ({
   }, []);
 
   const scrollTo = useCallback((minutes) => setScrollTarget(t => ({ minutes, nonce: t.nonce + 1 })), []);
+
+  // Tell the parent which days are on screen, so it can fetch them if they're outside the loaded window
+  const visible = visibleRangeFor(view, currentDate);
+  const visibleKey = `${visible.start.getTime()}-${visible.end.getTime()}`;
+  useEffect(() => {
+    onVisibleRangeChange?.(visibleRangeFor(view, currentDate));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the visible days change
+  }, [visibleKey, onVisibleRangeChange]);
 
   // The selected event vanished (deleted elsewhere, or a refresh dropped it)
   useEffect(() => {
@@ -104,6 +129,8 @@ const GoogleCalendar = ({
     setView('day');
     scrollTo(scrollMinutesFor(day, new Date()));
   }, [scrollTo, setView]);
+
+  const selectEvent = useCallback((event) => setSelectedId(event.id), []);
 
   const openCreate = useCallback((start, end, allDay = false) => {
     setSelectedId(null);
@@ -191,20 +218,20 @@ const GoogleCalendar = ({
     notify?.(`Created “${created.summary || 'event'}”`);
   };
 
-  const handleUpdate = async (event, changes) => {
+  const handleUpdate = async (event, changes, options) => {
     markBusy(event.id, true);
     try {
-      await onUpdate(event, changes);
+      await onUpdate(event, changes, options);
       notify?.('Event updated');
     } finally {
       markBusy(event.id, false);
     }
   };
 
-  const handleDelete = async (event) => {
+  const handleDelete = async (event, options) => {
     markBusy(event.id, true);
     try {
-      await onDelete(event);
+      await onDelete(event, options);
       setSelectedId(null);
       notify?.(`Deleted “${event.summary || 'event'}”`);
     } finally {
@@ -228,7 +255,7 @@ const GoogleCalendar = ({
     currentDate,
     events,
     now,
-    onEventClick: (event) => setSelectedId(event.id),
+    onEventClick: selectEvent,
     selectedEventId: selectedId,
     busyIds
   };
@@ -249,6 +276,13 @@ const GoogleCalendar = ({
               <ChevronRight size={18} />
             </button>
           </div>
+          {rangeLoading && (
+            <span role="status" className="inline-flex items-center gap-1 text-xs text-muted whitespace-nowrap">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+              <span className="hidden sm:inline">Loading…</span>
+              <span className="sr-only sm:hidden">Loading events</span>
+            </span>
+          )}
           {demo && (
             <span className="hidden sm:inline-flex items-center rounded-full border border-accent/30 bg-accent-soft/70 px-2.5 py-0.5 text-[11px] font-medium text-[#6B2E17] whitespace-nowrap" title="This is a demo with sample data. Nothing is saved to Google.">
               Demo — sample data
@@ -289,11 +323,12 @@ const GoogleCalendar = ({
               disabled={refreshing}
               aria-label="Refresh events"
               title={`Refresh (r)${lastUpdated ? ` · updated ${format(lastUpdated, 'h:mm a')}` : ''}`}
-              className={`${iconBtn} hidden sm:inline-flex disabled:opacity-50`}
+              className={`${iconBtn} inline-flex disabled:opacity-50`}
             >
               <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
             </button>
           )}
+          <CalendarList calendars={calendars} visible={visibleCalendars} onToggle={onToggleCalendar} />
           <button type="button" onClick={() => setShowHelp(true)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" className={`${iconBtn} hidden md:inline-flex`}>
             <Keyboard size={17} />
           </button>
@@ -326,6 +361,7 @@ const GoogleCalendar = ({
             onClose={() => setSelectedId(null)}
             onUpdate={handleUpdate}
             onDelete={handleDelete}
+            onRespond={onRespond}
           />
         )}
       </Dialog>

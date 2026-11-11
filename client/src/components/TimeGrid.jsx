@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { format, isToday, startOfDay, addDays, differenceInCalendarDays, addMinutes } from 'date-fns';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { format, isToday, startOfDay, addDays, differenceInCalendarDays } from 'date-fns';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { getEventTone } from '../utils/eventColors';
 import {
-  getEventStart, getEventEnd, isAllDayRowEvent, overlapsRange, getTimedSegmentsForDay,
+  getEventStart, getEventEnd, isAllDayRowEvent, overlapsRange, indexEventsByDay, timedSegments,
   layoutSegments, getEventTitle, formatShortTime, formatEventRange
 } from '../utils/eventUtils';
+import { dateAtMinutes, segmentMinutes, DAY_MINUTES } from '../utils/timeGrid';
+import { rsvpMarks } from '../utils/rsvp';
 
 const HOUR_HEIGHT = 56; // px per hour
 const PX_PER_MIN = HOUR_HEIGHT / 60;
@@ -14,7 +16,7 @@ const SNAP = 15;
 const COLLAPSED_LANES = 2;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-const tooltipFor = (event) => [getEventTitle(event), formatEventRange(event), event.location].filter(Boolean).join('\n');
+const tooltipFor = (event) => [getEventTitle(event) + rsvpMarks(event).suffix, formatEventRange(event), event.location].filter(Boolean).join('\n');
 
 /**
  * Time grid shared by Week (7 days) and Day (1 day) views.
@@ -23,7 +25,7 @@ const tooltipFor = (event) => [getEventTitle(event), formatEventRange(event), ev
  * - Click or drag on empty space to create
  * - Current-time line, auto-scroll to scrollTarget.minutes whenever scrollTarget.nonce changes
  */
-const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, scrollTarget, selectedEventId, busyIds }) => {
+const TimeGrid = memo(function TimeGrid({ days, events, now, onEventClick, onCreateRange, onDayClick, scrollTarget, selectedEventId, busyIds }) {
   const scrollerRef = useRef(null);
   const [drag, setDrag] = useState(null); // { dayIndex, anchor, current } in minutes
   const lastPointerType = useRef('mouse');
@@ -70,16 +72,22 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
     allDay.items.filter(it => it.lane >= showLanes && it.first <= i && it.last >= i).length
   );
 
-  // ---- Timed events per day ----
+  // ---- Timed events per day (one pass over the events, dates parsed once) ----
   const columns = useMemo(
-    () => days.map(day => layoutSegments(getTimedSegmentsForDay(events, day), MIN_EVENT_MIN)),
-    [days, events]
+    () => indexEventsByDay(events, new Date(rangeStartMs), dayCount)
+      .map((entries, i) => {
+        const day = new Date(rangeStartMs);
+        day.setDate(day.getDate() + i);
+        return layoutSegments(timedSegments(entries), MIN_EVENT_MIN)
+          .map(seg => ({ ...seg, ...segmentMinutes(seg, day) }));
+      }),
+    [events, rangeStartMs, dayCount]
   );
 
   // ---- Click / drag to create ----
   const minuteAt = (e, el) => {
     const rect = el.getBoundingClientRect();
-    return Math.min(24 * 60, Math.max(0, (e.clientY - rect.top) / PX_PER_MIN));
+    return Math.min(DAY_MINUTES, Math.max(0, (e.clientY - rect.top) / PX_PER_MIN));
   };
 
   const onPointerDown = (e, dayIndex) => {
@@ -99,7 +107,7 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
 
   const finishDrag = (e) => {
     if (!drag) return;
-    const day = startOfDay(days[drag.dayIndex]);
+    const day = days[drag.dayIndex];
     let startMin;
     let endMin;
     if (!drag.moved) {
@@ -112,7 +120,8 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
     }
     setDrag(null);
     e.currentTarget.releasePointerCapture?.(e.pointerId);
-    onCreateRange(addMinutes(day, startMin), addMinutes(day, Math.min(endMin, 24 * 60)), false);
+    // Wall-clock minutes → dates via setHours, so a click on 9:00 is 9:00 on daylight-saving days too
+    onCreateRange(dateAtMinutes(day, startMin), dateAtMinutes(day, Math.min(endMin, DAY_MINUTES)), false);
   };
 
   // Touch and pen: a tap creates a one-hour event (dragging would fight scrolling)
@@ -120,8 +129,8 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
     if (lastPointerType.current === 'mouse' || !onCreateRange) return;
     if (e.target.closest('[data-event]')) return;
     const minute = Math.floor(minuteAt(e, e.currentTarget) / 30) * 30;
-    const day = startOfDay(days[dayIndex]);
-    onCreateRange(addMinutes(day, minute), addMinutes(day, Math.min(minute + 60, 24 * 60)), false);
+    const day = days[dayIndex];
+    onCreateRange(dateAtMinutes(day, minute), dateAtMinutes(day, Math.min(minute + 60, DAY_MINUTES)), false);
   };
 
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -183,6 +192,7 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
             >
               {allDay.items.filter(it => it.lane < showLanes).map(({ event, first, last, lane, clippedLeft, clippedRight }) => {
                 const tone = getEventTone(event);
+                const rsvp = rsvpMarks(event);
                 return (
                   <button
                     type="button"
@@ -191,9 +201,9 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
                     onClick={() => onEventClick(event)}
                     title={tooltipFor(event)}
                     style={{ gridColumn: `${first + 1} / ${last + 2}`, gridRow: lane + 1 }}
-                    className={`mx-0.5 min-w-0 text-left ${tone.block} border-l-2 text-[11px] font-medium px-1.5 rounded-[4px] truncate hover:brightness-[0.97] transition ${clippedLeft ? 'rounded-l-none border-l-0' : ''} ${clippedRight ? 'rounded-r-none' : ''} ${selectedEventId === event.id ? 'ring-2 ring-ink/30' : ''} ${busyIds?.has(event.id) ? 'opacity-40 pointer-events-none' : ''}`}
+                    className={`mx-0.5 min-w-0 text-left ${tone.block} border-l-2 text-[11px] font-medium px-1.5 rounded-[4px] truncate hover:brightness-[0.97] transition ${clippedLeft ? 'rounded-l-none border-l-0' : ''} ${clippedRight ? 'rounded-r-none' : ''} ${rsvp.dashed ? 'border-dashed' : ''} ${rsvp.declined ? 'saturate-[.35]' : ''} ${selectedEventId === event.id ? 'ring-2 ring-ink/30' : ''} ${busyIds?.has(event.id) ? 'opacity-40 pointer-events-none' : ''}`}
                   >
-                    {clippedLeft && <span aria-hidden="true">‹ </span>}{getEventTitle(event)}
+                    {clippedLeft && <span aria-hidden="true">‹ </span>}<span className={rsvp.declined ? 'line-through' : undefined}>{getEventTitle(event)}</span>
                   </button>
                 );
               })}
@@ -248,15 +258,16 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
 
               {/* Events layer leaves a gutter on the right so empty time stays clickable */}
               <div className="absolute inset-y-0 left-0 right-1.5 sm:right-2.5 pointer-events-none">
-                {columns[dayIndex].map(({ event, start, end, col, cols, span, continuesBefore, continuesAfter }) => {
+                {columns[dayIndex].map(({ event, startMin, endMin, col, cols, span, continuesBefore, continuesAfter }) => {
                   const tone = getEventTone(event);
-                  const startMin = (start - startOfDay(day)) / 60000;
-                  const durationMin = Math.max((end - start) / 60000, MIN_EVENT_MIN);
+                  const durationMin = Math.max(endMin - startMin, MIN_EVENT_MIN);
                   const height = durationMin * PX_PER_MIN - 2;
                   const compact = height < 36;
                   const past = getEventEnd(event) < now;
                   const realStart = getEventStart(event);
                   const realEnd = getEventEnd(event);
+                  const rsvp = rsvpMarks(event);
+                  const titleCls = rsvp.declined ? 'line-through' : undefined;
                   return (
                     <button
                       type="button"
@@ -264,8 +275,8 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
                       key={event.id}
                       onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
                       title={tooltipFor(event)}
-                      aria-label={`${getEventTitle(event)}, ${formatEventRange(event)}`}
-                      className={`pointer-events-auto absolute ${tone.block} border-l-2 text-left text-[11px] leading-tight px-1.5 ${compact ? 'py-0' : 'py-1'} rounded-[5px] overflow-hidden hover:brightness-[0.97] hover:z-20 focus-visible:z-20 transition shadow-[0_0_0_1px_rgba(255,255,255,0.9)] ${past ? 'opacity-70' : ''} ${selectedEventId === event.id ? 'ring-2 ring-ink/40 z-20' : 'z-10'} ${continuesBefore ? 'rounded-t-none' : ''} ${continuesAfter ? 'rounded-b-none' : ''} ${busyIds?.has(event.id) ? 'opacity-40 pointer-events-none' : ''}`}
+                      aria-label={`${getEventTitle(event)}${rsvp.suffix}, ${formatEventRange(event)}`}
+                      className={`pointer-events-auto absolute ${tone.block} border-l-2 text-left text-[11px] leading-tight px-1.5 ${compact ? 'py-0' : 'py-1'} rounded-[5px] overflow-hidden hover:brightness-[0.97] hover:z-20 focus-visible:z-20 transition shadow-[0_0_0_1px_rgba(255,255,255,0.9)] ${past || rsvp.declined ? 'saturate-[.35]' : ''} ${rsvp.dashed ? 'border-dashed' : ''} ${selectedEventId === event.id ? 'ring-2 ring-ink/40 z-20' : 'z-10'} ${continuesBefore ? 'rounded-t-none' : ''} ${continuesAfter ? 'rounded-b-none' : ''} ${busyIds?.has(event.id) ? 'opacity-40 pointer-events-none' : ''}`}
                       style={{
                         top: startMin * PX_PER_MIN + 1,
                         height,
@@ -275,15 +286,15 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
                     >
                       {compact ? (
                         <div className="truncate" style={{ lineHeight: `${Math.max(height, 12)}px` }}>
-                          <span className="font-semibold">{getEventTitle(event)}</span>
-                          {!single && cols > 2 ? null : <span className="opacity-75">, {formatShortTime(realStart)}</span>}
+                          <span className={`font-semibold ${titleCls || ''}`}>{getEventTitle(event)}</span>
+                          {!single && cols > 2 ? null : <span className="font-normal">, {continuesBefore ? `until ${formatShortTime(realEnd)}` : formatShortTime(realStart)}</span>}
                         </div>
                       ) : (
                         <>
-                          <div className="font-semibold break-normal" style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: Math.max(1, Math.floor((height - 18) / 13)), overflow: 'hidden' }}>
+                          <div className={`font-semibold break-normal ${titleCls || ''}`} style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: Math.max(1, Math.floor((height - 18) / 13)), overflow: 'hidden' }}>
                             {getEventTitle(event)}
                           </div>
-                          <div className="opacity-75 truncate">
+                          <div className="truncate">
                             {formatShortTime(realStart)} – {formatShortTime(realEnd)}
                             {single && event.location ? ` · ${event.location}` : ''}
                           </div>
@@ -299,7 +310,7 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
                     style={{ top: ghost.top + 1, height: Math.max(ghost.height - 2, 14) }}
                   >
                     <div className="font-semibold">(No title)</div>
-                    <div className="opacity-80">{formatShortTime(addMinutes(startOfDay(day), ghost.startMin))} – {formatShortTime(addMinutes(startOfDay(day), ghost.endMin))}</div>
+                    <div>{formatShortTime(dateAtMinutes(day, ghost.startMin))} – {formatShortTime(dateAtMinutes(day, ghost.endMin))}</div>
                   </div>
                 )}
               </div>
@@ -315,6 +326,6 @@ const TimeGrid = ({ days, events, now, onEventClick, onCreateRange, onDayClick, 
       </div>
     </div>
   );
-};
+});
 
 export default TimeGrid;

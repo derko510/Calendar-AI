@@ -6,6 +6,7 @@ import { getEventTone } from '../utils/eventColors';
 import { formatEventRange, getEventTitle, getJoinLinks, googleMapsUrl, isEventNow, isAllDayEvent } from '../utils/eventUtils';
 import { splitLinks, safeHref } from '../utils/linkify';
 import { formValuesFromEvent, buildEventChanges } from '../utils/eventForm';
+import { canRsvp, getMyResponse } from '../utils/rsvp';
 
 const Row = ({ icon, label, children }) => (
   <div className="flex gap-3 text-[14px] leading-relaxed text-ink-soft">
@@ -17,16 +18,22 @@ const Row = ({ icon, label, children }) => (
 const calendarLabel = (event) =>
   event.calendarName || event.organizer?.displayName || (event.calendarId && event.calendarId !== 'primary' ? event.calendarId : 'Primary calendar');
 
-const responseLabel = { accepted: 'Going', declined: 'Declined', tentative: 'Maybe', needsAction: 'Invited' };
+const responseLabel = { accepted: 'going', declined: 'declined', tentative: 'maybe', needsAction: 'no reply' };
+
+const RSVP_OPTIONS = [['accepted', 'Yes'], ['tentative', 'Maybe'], ['declined', 'No']];
 
 /**
  * Body of the event dialog: details view, edit form, and delete confirmation.
- * onUpdate(event, changes) and onDelete(event) are async and may throw.
+ * onUpdate(event, changes, { sendUpdates }) and onDelete(event, { sendUpdates }) are async and may throw.
+ * onRespond(event, status) answers an invitation ('accepted' | 'tentative' | 'declined') and may throw.
+ * With guests on the event, saving / deleting asks whether to email them.
  */
-const EventDetails = ({ event, headingId, onClose, onUpdate, onDelete }) => {
+const EventDetails = ({ event, headingId, onClose, onUpdate, onDelete, onRespond }) => {
   const [mode, setMode] = useState('view'); // view | edit | confirmDelete
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [rsvpBusy, setRsvpBusy] = useState(false);
+  const [rsvpError, setRsvpError] = useState(null);
   const tone = getEventTone(event);
   const joinLinks = getJoinLinks(event);
   const writable = event.isWritable !== false;
@@ -35,11 +42,15 @@ const EventDetails = ({ event, headingId, onClose, onUpdate, onDelete }) => {
   const location = (event.location || '').trim();
   const locationHasUrl = splitLinks(location).some(p => p.type === 'link');
   const attendees = (event.attendees || []).filter(a => !a.resource);
+  const hasGuests = attendees.some(a => !a.self);
+  // Invited to someone else's event: Google only lets the organiser (or guests, if allowed) change it
+  const organiserOnly = writable && !!event.organizer && !event.organizer.self && !event.guestsCanModify;
+  const canEdit = writable && !organiserOnly;
   const happeningNow = !isAllDayEvent(event) && isEventNow(event);
 
   // "e" edits, like Google Calendar (ignored while typing)
   useEffect(() => {
-    if (mode !== 'view' || !writable) return undefined;
+    if (mode !== 'view' || !canEdit) return undefined;
     const onKey = (e) => {
       if (e.key !== 'e' || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
@@ -48,7 +59,7 @@ const EventDetails = ({ event, headingId, onClose, onUpdate, onDelete }) => {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [mode, writable]);
+  }, [mode, canEdit]);
 
   if (mode === 'edit') {
     return (
@@ -58,23 +69,39 @@ const EventDetails = ({ event, headingId, onClose, onUpdate, onDelete }) => {
         initial={formValuesFromEvent(event)}
         submitLabel="Save"
         note={recurring ? 'Changes apply to this occurrence only.' : null}
+        askNotify={hasGuests}
         onCancel={() => setMode('view')}
-        onSubmit={async (values) => {
+        onSubmit={async (values, options) => {
           const { changes, error: validation } = buildEventChanges(event, values);
           if (validation) throw new Error(validation);
           if (Object.keys(changes).length === 0) { setMode('view'); return; }
-          await onUpdate(event, changes);
+          await onUpdate(event, changes, options);
           setMode('view');
         }}
       />
     );
   }
 
-  const handleDelete = async () => {
+  const myResponse = getMyResponse(event);
+  const showRsvp = canRsvp(event);
+
+  const handleRespond = async (status) => {
+    setRsvpBusy(true);
+    setRsvpError(null);
+    try {
+      await onRespond(event, status);
+    } catch (err) {
+      setRsvpError(err?.message || 'Could not update your response.');
+    } finally {
+      setRsvpBusy(false);
+    }
+  };
+
+  const handleDelete = async (options = {}) => {
     setBusy(true);
     setError(null);
     try {
-      await onDelete(event);
+      await onDelete(event, options);
     } catch (err) {
       setError(err?.message || 'Could not delete this event.');
       setBusy(false);
@@ -89,7 +116,7 @@ const EventDetails = ({ event, headingId, onClose, onUpdate, onDelete }) => {
           {getEventTitle(event)}
         </h2>
         <div className="flex items-center gap-0.5 -mr-2 -mt-1 shrink-0">
-          {writable && (
+          {canEdit && (
             <button type="button" onClick={() => setMode('edit')} aria-label="Edit event" title="Edit (e)" className="p-2 rounded-full text-muted hover:text-ink hover:bg-paper transition-colors">
               <Pencil className="w-4 h-4" />
             </button>
@@ -160,7 +187,7 @@ const EventDetails = ({ event, headingId, onClose, onUpdate, onDelete }) => {
               {attendees.slice(0, 8).map(a => (
                 <li key={a.email} className="truncate">
                   {a.displayName || a.email}{a.self ? ' (you)' : ''}
-                  {a.responseStatus && <span className="text-muted/80"> · {responseLabel[a.responseStatus] || a.responseStatus}</span>}
+                  {a.responseStatus && <span className="text-muted"> · {responseLabel[a.responseStatus] || a.responseStatus}</span>}
                 </li>
               ))}
               {attendees.length > 8 && <li>and {attendees.length - 8} more</li>}
@@ -168,9 +195,39 @@ const EventDetails = ({ event, headingId, onClose, onUpdate, onDelete }) => {
           </Row>
         )}
 
+        {showRsvp && (
+          <div className="pl-7">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-[14px] text-ink-soft">Going?</span>
+              {RSVP_OPTIONS.map(([status, label]) => {
+                const selected = myResponse === status;
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    aria-pressed={selected}
+                    disabled={rsvpBusy}
+                    onClick={() => handleRespond(status)}
+                    className={selected
+                      ? 'rounded-full bg-ink px-3.5 py-1.5 text-sm font-medium text-paper hover:bg-ink-soft disabled:opacity-50 transition-colors'
+                      : 'rounded-full border border-line bg-surface px-3.5 py-1.5 text-sm font-medium text-ink-soft hover:bg-paper disabled:opacity-50 transition-colors'}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {myResponse === 'needsAction' && <p className="mt-1.5 text-[13px] text-muted">You haven’t responded yet</p>}
+            {rsvpError && <p role="alert" className="mt-1.5 text-sm text-[#6B2E17] font-medium">{rsvpError}</p>}
+          </div>
+        )}
+
         <Row icon={<CalendarDays />} label="Calendar">
           <span>{calendarLabel(event)}</span>
           {!writable && <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted"><Lock className="w-3 h-3" aria-hidden="true" />Read-only</span>}
+          {organiserOnly && (
+            <span className="mt-0.5 flex items-center gap-1 text-xs text-muted"><Lock className="w-3 h-3" aria-hidden="true" />Only the organiser can change this event</span>
+          )}
         </Row>
       </div>
 
@@ -179,14 +236,20 @@ const EventDetails = ({ event, headingId, onClose, onUpdate, onDelete }) => {
           <p className="text-sm text-[#6B2E17]">
             Delete {recurring ? 'this occurrence of ' : ''}“{getEventTitle(event)}”? This can’t be undone.
           </p>
+          {hasGuests && <p className="mt-1 text-sm text-[#6B2E17]">Email the guests that it’s cancelled?</p>}
           {error && <p role="alert" className="mt-1.5 text-sm text-[#6B2E17] font-medium">{error}</p>}
-          <div className="mt-3 flex justify-end gap-2">
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
             <button type="button" onClick={() => { setMode('view'); setError(null); }} className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-sm font-medium text-ink-soft hover:bg-paper transition-colors">
               Keep it
             </button>
-            <button type="button" data-autofocus onClick={handleDelete} disabled={busy} autoFocus className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50">
+            {hasGuests && (
+              <button type="button" onClick={() => handleDelete({ sendUpdates: 'none' })} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-surface px-3.5 py-1.5 text-sm font-medium text-[#6B2E17] hover:bg-paper disabled:opacity-50">
+                Delete, don’t notify
+              </button>
+            )}
+            <button type="button" data-autofocus onClick={() => handleDelete(hasGuests ? { sendUpdates: 'all' } : {})} disabled={busy} autoFocus className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50">
               {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              Delete
+              {hasGuests ? 'Delete & notify' : 'Delete'}
             </button>
           </div>
         </div>

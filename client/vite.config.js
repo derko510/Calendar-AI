@@ -18,8 +18,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       // API runs separately in dev (npm run dev:api); same paths as production
       proxy: {
-        '/api': 'http://localhost:3001',
-        '/api-docs': 'http://localhost:3001'
+        '/api': 'http://localhost:3001'
       }
     }
   };

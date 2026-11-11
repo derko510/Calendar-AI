@@ -36,7 +36,7 @@ test('agent loop over Claude: search, then answer; request shapes are right', as
   const thinking = { type: 'thinking', thinking: '', signature: 'sig123' };
   const { llm, bodies } = llmWith([
     { content: [thinking, { type: 'tool_use', id: 'tu_1', name: 'search_events', input: { keywords: ['dentist', 'dental'], status: 'past', order: 'desc', limit: 1 } }], stop_reason: 'tool_use' },
-    { content: [{ type: 'tool_use', id: 'tu_2', name: 'answer', input: { text: 'Oct 20 at 3 PM.', eventIds: ['d1'] } }], stop_reason: 'tool_use', cacheRead: 80 }
+    { content: [{ type: 'tool_use', id: 'tu_2', name: 'answer', input: { text: 'Oct 20 at 3 PM.', eventIds: ['e1'] } }], stop_reason: 'tool_use', cacheRead: 80 }
   ]);
   const result = await runAgent('When was my last dentist appointment?', EVENTS, { now: NOW, timeZone: 'America/Los_Angeles', llm });
 
@@ -45,7 +45,7 @@ test('agent loop over Claude: search, then answer; request shapes are right', as
   const [first, second] = bodies;
   assert.equal(first.model, 'claude-haiku-5-5');
   assert.equal(first.output_config.effort, 'low');
-  assert.match(first.system, /current time is 5:27 PM/);
+  assert.match(first.system, /Now: 5:27 PM/);
   assert.equal(first.messages[0].role, 'user');
   assert.deepEqual(first.tool_choice, { type: 'auto', disable_parallel_tool_use: true });
   assert.deepEqual(first.tools.map(t => t.name), ['search_events', 'answer', 'create_events', 'delete_events']);
@@ -61,7 +61,7 @@ test('agent loop over Claude: search, then answer; request shapes are right', as
   assert.equal(toolResult.type, 'tool_result');
   assert.equal(toolResult.tool_use_id, 'tu_1');
   const found = JSON.parse(toolResult.content);
-  assert.equal(found.events[0].id, 'd1');
+  assert.equal(found.events[0].id, 'e1', 'the model sees a short alias, not the Google id');
   assert.equal(found.events[0].status, 'past');
 
   assert.equal(llm.usage.calls, 2);
@@ -99,4 +99,48 @@ test('Claude model is hardcoded to Haiku 5.5; ANTHROPIC_MODEL cannot change it',
   } finally {
     delete process.env.ANTHROPIC_MODEL;
   }
+});
+
+test('mid-loop fallback: Groq-style tool-call history replays correctly through the Claude adapter', async () => {
+  const { createFallbackLLM, toAnthropicMessages } = await import('../src/services/llm.js');
+  // Step 1 is served by "Groq" (OpenAI-shaped tool call with an id Claude would reject), step 2 hits a rate limit
+  let groqCalls = 0;
+  const groq = {
+    provider: 'groq', model: 'openai/gpt-oss-120b', answerMode: 'tool', usage: { calls: 0 },
+    async chat() {
+      groqCalls += 1;
+      if (groqCalls === 1) {
+        return { role: 'assistant', content: null, tool_calls: [{ id: 'call.abc:1', type: 'function', function: { name: 'search_events', arguments: '{"keywords":["dentist"],"status":"past","order":"desc"}' } }] };
+      }
+      throw Object.assign(new Error('rate_limited'), { status: 429 });
+    }
+  };
+  const { llm: claude, bodies } = llmWith([
+    { content: [{ type: 'tool_use', id: 'tu_9', name: 'answer', input: { text: 'Oct 20.', eventIds: ['e1'] } }], stop_reason: 'tool_use' }
+  ]);
+  const llm = createFallbackLLM(groq, claude);
+  const result = await runAgent('When was my last dentist appointment?', EVENTS, { now: NOW, timeZone: 'America/Los_Angeles', llm });
+  assert.deepEqual(result.eventIds, ['d1']);
+  assert.equal(llm.fellBack, true);
+
+  const [body] = bodies;
+  assert.deepEqual(body.messages.map(m => m.role), ['user', 'assistant', 'user']);
+  const toolUse = body.messages[1].content[0];
+  assert.deepEqual({ type: toolUse.type, id: toolUse.id, name: toolUse.name }, { type: 'tool_use', id: 'call_abc_1', name: 'search_events' });
+  assert.deepEqual(toolUse.input, { keywords: ['dentist'], status: 'past', order: 'desc' });
+  const toolResult = body.messages[2].content[0];
+  assert.equal(toolResult.type, 'tool_result');
+  assert.equal(toolResult.tool_use_id, 'call_abc_1');
+  assert.equal(JSON.parse(toolResult.content).events[0].id, 'e1');
+
+  // Consecutive same-role turns (a tool result followed by a nudge) merge into one user turn
+  const merged = toAnthropicMessages([
+    { role: 'user', content: 'hi' },
+    { role: 'assistant', content: 'thinking', tool_calls: [{ id: 'x', function: { name: 'search_events', arguments: 'not json' } }] },
+    { role: 'tool', tool_call_id: 'x', content: '{"error":"bad"}' },
+    { role: 'user', content: 'Call one of the tools.' }
+  ]);
+  assert.deepEqual(merged.messages.map(m => m.role), ['user', 'assistant', 'user']);
+  assert.deepEqual(merged.messages[1].content[1].input, {});
+  assert.equal(merged.messages[2].content.length, 2);
 });
